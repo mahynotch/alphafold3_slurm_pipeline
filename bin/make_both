@@ -144,7 +144,7 @@ if __name__ == "__main__":
     args = parsing()
     af = Alphafold3PullDown(
         args.job_name,
-        "make_complex",
+        "both",
         args.bait_type,
         args.bait_input,
         args.prey_type,

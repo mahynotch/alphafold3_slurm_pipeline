@@ -25,7 +25,35 @@ else
     echo "AlphaFold3 directory already exists."
 fi
 
+# Move af3 script to bin directory
 echo "#!/bin/usr/env python3" > bin/run_alphafold
 cat alphafold3/run_alphafold.py >> bin/run_alphafold
+chmod +x bin/run_alphafold
 
-sbatch ./af3_install.slurm
+# Configure the environment
+read -p "Enter the directory where you want to install the environment (default is ./env): " env_dir
+env_dir=${env_dir:-./env}
+env_dir=$(realpath "$env_dir")
+python modify_config.py "env: $env_dir"
+
+read -p "Enter the directory where you store your database (default is /ibex/reference/KSL/alphafold/3.0.0): " db_dir
+db_dir=${db_dir:-/ibex/reference/KSL/alphafold/3.0.0}
+db_dir=$(realpath "$db_dir")
+python modify_config.py "db: $db_dir"
+
+read -p "Enter the !directory! where you store the parameter file (default is ./parameter): " param_dir
+param_dir=${param_dir:-./parameter}
+param_dir=$(realpath "$param_dir")
+python modify_config.py "parameter: $param_dir"
+
+# Create the environment directory
+if [ ! -d "$env_dir" ]; then
+    echo "Creating environment directory at $env_dir..."
+    mkdir -p "$env_dir"
+else
+    echo "Environment directory already exists at $env_dir."
+fi
+
+echo "Will installing environment in $env_dir..."
+echo "Installation script will be submitted to the cluster. Please use 'squeue -u $USER' to check the status of the job."
+sbatch ./af3_install.slurm $env_dir

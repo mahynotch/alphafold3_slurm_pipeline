@@ -3,6 +3,7 @@ import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json, os
+from itertools import product
 
 def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
     # Prepare data for pLDDT plotting
@@ -99,48 +100,62 @@ def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-def collect_statistics(bait_list, prey_list, complex_dir):
+
+def collect_statistics(name_set: set[list], complex_dir):
+    """
+    Collect statistics for a set of molecule names
+    :param name_set: a set containing lists of molecule names, e.g. (bait_list, prey_list)
+    :param complex_dir: path to the directory containing the complex folders
+    """
+    name_combinations = list(product(*name_set))
+    name_list = list(map(lambda x: '-'.join(x), name_combinations))
+    df = _collect_statistics(name_list, complex_dir)
+    return df
+
+def _collect_statistics(name_list, complex_dir):
     # Initialize empty lists to store results
     results = []
-    for bait in bait_list:
-        for prey in prey_list:
-            name = f"{bait}-{prey}"
-            result = {
-            'bait': bait,
-            "prey": prey,
-            'pTM': np.nan,
-            'pLDDT': np.nan,
-            'ipTM': np.nan
-            }
-            # Find matching folder
-            matching_folders = [d for d in os.listdir(complex_dir) 
-                            if d.startswith(name)]
+    for name in name_list:
+        result = {
+        'name': name,
+        'pTM': np.nan,
+        'pLDDT': np.nan,
+        'ipTM': np.nan
+        }
+        # Find matching folder
+        matching_folders = [d for d in os.listdir(complex_dir) 
+                        if d.startswith(name)]
+        
+        if matching_folders:
+            folder = matching_folders[0]
+            json_file = os.path.join(complex_dir, folder, 
+                                f"{folder}_summary_confidences.json")
             
-            if matching_folders:
-                folder = matching_folders[0]
-                json_file = os.path.join(complex_dir, folder, 
-                                    f"{folder}_summary_confidences.json")
-                
-                if os.path.exists(json_file):
-                    try:
-                        with open(json_file, 'r') as f:
-                            data = json.load(f)
-                            result['pTM'] = data['ptm']
-                            result['ipTM'] = data['iptm']
-                    except:
-                        pass
-                
-                atom_met_file = os.path.join(complex_dir, folder, 
-                                        f"{folder}_confidences.json")
-                if os.path.exists(atom_met_file):
-                    try:
-                        with open(atom_met_file, 'r') as f:
-                            data = json.load(f)
-                            atom_plddts = data['atom_plddts']
-                            average_plddt = sum(atom_plddts) / (len(atom_plddts) * 100)
-                            result['pLDDT'] = average_plddt
-                    except:
-                        pass
-            results.append(result)
+            if os.path.exists(json_file):
+                try:
+                    with open(json_file, 'r') as f:
+                        data = json.load(f)
+                        result['pTM'] = data['ptm']
+                        result['ipTM'] = data['iptm']
+                except:
+                    pass
+            
+            atom_met_file = os.path.join(complex_dir, folder, 
+                                    f"{folder}_confidences.json")
+            if os.path.exists(atom_met_file):
+                try:
+                    with open(atom_met_file, 'r') as f:
+                        data = json.load(f)
+                        atom_plddts = data['atom_plddts']
+                        average_plddt = sum(atom_plddts) / (len(atom_plddts) * 100)
+                        result['pLDDT'] = average_plddt
+                except:
+                    pass
+        
+        molecule_names = name.split('-')
+        if len(molecule_names) > 1:
+            for i, key in enumerate(molecule_names):
+                result[f'name_molecule{i}'] = key
+        results.append(result)
     df = pl.DataFrame(results)
     return df

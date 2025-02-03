@@ -1,0 +1,7 @@
+alphafold3
+env
+dcgm
+alphafold3_slurm_pipeline.egg-info
+__pycache__
+AF_install.out
+build

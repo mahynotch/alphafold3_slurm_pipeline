@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+
+import argparse, os, sys
+from alphafold3_slurm.config import Config
+
+config = Config()
+
+script = """#!/bin/bash -l
+#SBATCH -N 1
+#SBATCH --partition=batch
+#SBATCH --job-name=AF_test
+#SBATCH --output={output}/ibex_out/%x-%j.out
+#SBATCH --time={time}
+#SBATCH --mem={mem}G
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --constraint=a100
+
+
+conda activate {env}
+
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export TF_FORCE_UNIFIED_MEMORY=1
+export LA_FLAGS=\'--xla_gpu_enable_triton_gemm=false\'
+export XLA_PYTHON_CLIENT_PREALLOCATE=true
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95
+
+
+time run_alphafold --json_path={input} --model_dir={model} --db_dir={db} --output_dir={output}
+"""
+
+
+def parsing(args: list = None) -> argparse.Namespace:
+    """
+    Creates the argument parser instance and applies it to the command line
+    input
+
+    Args:
+        args (list, optional): List of the arguments to be parsed (only to be
+            used for testing). If none is provided, it is taken from sys.argv.
+            Defaults to None.
+
+    Returns:
+        argparse.Namespace
+    """
+
+    parser = argparse.ArgumentParser(
+        description=("Takes one or more input files in .json forma")
+    )
+
+    parser.add_argument(
+        "--input",
+        help=("Json file or directory of json files with the input data."),
+        required=True,
+    )
+
+    parser.add_argument(
+        "--output",
+        help=(
+            "Path for saving the resulting AlphaFold features. It will create "
+            "one subdirectory for each model. Also will contain the sequence files "
+            "as they were submitted to ibex, the script that was submitted and the "
+            "ibex stdout files."
+        ),
+        required=True,
+    )
+
+    parser.add_argument(
+        "--time",
+        help=("Time in minutes to give to each job. " '(default="300")'),
+        type=int,
+        default=300,
+    )
+
+    parser.add_argument(
+        "--mem",
+        help=("Memory in GB to allocate to each job. " '(default="64")'),
+        type=int,
+        default=64,
+    )
+
+    return parser.parse_args(args)
+
+
+def time_conversion(time: int) -> str:
+    """
+    Converts the time in minutes to the format HH:MM:SS
+
+    Args:
+        time (int): Time in minutes
+
+    Returns:
+        str: Time in the format HH:MM:SS
+    """
+    hours = time // 60
+    minutes = time % 60
+    return f"{hours:02d}:{minutes:02d}:00"
+
+
+if __name__ == "__main__":
+    args = parsing()
+    if os.path.isdir(args.input):
+        for file in os.listdir(args.input):
+            if file.endswith(".json"):
+                print("Submitting", file)
+                file_script = script.format(
+                    env=config["env"],
+                    input=os.path.join(args.input, file),
+                    model=config["parameter"],
+                    db=config["db"],
+                    output=args.output,
+                    time=time_conversion(args.time),
+                    mem=args.mem,
+                )
+                with open(f"{file}.slurm", "w") as f:
+                    f.write(file_script)
+                os.system(f"sbatch {file}.slurm")
+                os.system(f"rm {file}.slurm")
+    else:
+        print(args.input)
+        file_script = script.format(
+            env=config["env"],
+            input=args.input,
+            model=config["parameter"],
+            db=config["db"],
+            output=args.output,
+            time=time_conversion(args.time),
+            mem=args.mem,
+        )
+        with open(f"{args.input}.slurm", "w") as f:
+            f.write(file_script)
+        os.system(f"sbatch {args.input}.slurm")
+        os.system(f"rm {args.input}.slurm")

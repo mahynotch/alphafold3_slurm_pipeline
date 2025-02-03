@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 #SBATCH -N 1
 #SBATCH --job-name=AF_install
 #SBATCH --output=%x.out
@@ -8,37 +8,38 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --constraint=v100
 
-source ~/.bashrc
 module load cuda/12.2 gcc/12.2.0
 
-if ! conda env list | grep -q alphafold3_env
+if [ -n "$1" ]
 then
     echo "Creating conda environment..."
     if command -v mamba &> /dev/null
     then
         echo "Using mamba to create the environment..."
-        mamba env create -f ./environment.yml --quiet --yes
+        mamba env create -f ./environment.yml --quiet --yes --prefix $1
     else
         echo "Using conda to create the environment..."
-        conda env create -f ./environment.yml --quiet --yes
+        conda env create -f ./environment.yml --quiet --yes --prefix $1
     fi
-    conda env create -f ./environment.yml --quiet --yes
-    conda activate alphafold3_env
 else
     echo "Conda environment already exists."
 fi
 
-if ! conda env list | grep -q alphafold3_env
+conda activate $1
+
+if [ $? -eq 0 ]
 then
-    echo "Failed to create conda environment. Exiting..."
+    echo "Conda environment activated."
+else
+    echo "Failed to activate conda environment. Exiting..."
     exit 1
 fi
 
+python modify_config.py "env: $1"
+
 cd alphafold3/
-pip install --no-deps . --verbose 
+pip install -e --no-deps . --verbose 
 
 build_data
 
 echo "Installation complete."
-
-rm AF_install.out
