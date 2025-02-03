@@ -8,7 +8,7 @@ To install it, please follow the instructions below (**This installation guide i
 ## Installation
 1. Clone this repository.
 2. `cd alphafold3_slurm_pipeline`
-3. Run `./af3_install.sh` to install the required dependencies. **This process would submit a sbatch job, and could take fair amount of time.**
+3. Run `./af3_env_setup.sh` to install the required dependencies. **This process would submit a sbatch job, and could take fair amount of time.**
 4. If the installation is failed, you can refer to "AF_install.out" for any error messages. Please contact the author if you have any questions.
 
 ## Non-ibex User
@@ -118,4 +118,4 @@ Optional Arguments
 -   --check_stat: Print pLDDT, ipTM, and pTM statistics
 
 # Acknowledgement
-This tool is partially based on former alphafold wrapper by Javier, the repository is [here](https://github.com/strubelab/alphafold), kudos to him for setting up a standard to follow, and instructions he has provided me. Much appreciation for DeepMind for providing such great tool.
+This tool is partially based on former alphafold wrapper by Javier, the repository is [here](https://github.com/strubelab/alphafold), kudos to him for setting up a standard to follow, and instructions he has provided me. Much appreciation for DeepMind for providing such a great tool.
