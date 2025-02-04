@@ -23,7 +23,7 @@ For non-Ibex users, you need to make several modifications based on the slurm sy
 It is worth noting that the parameter of AF3 should not be distributed or shared without permission. Therefore, if you are looking for the parameter required by AF3. Please refer to [Obtaining Model Parameters](https://github.com/google-deepmind/alphafold3/tree/main?tab=readme-ov-file) of AF3 github page.
 
 ## Usage
-After installation, you can use the pipeline to generate features, complexes and monomers. Please remember that you should run `conda activate <environment directory>` (By default, you can `cd` to this repository and run `conda activate ./env`) to activate the environment before any script is called. The following is an example of how to use the pipeline:
+After installation, you can use the pipeline to generate features, complexes and monomers. Please remember that you should run `conda activate <environment directory>` (By default, you can `cd` to this repository and run `conda activate ./env`) to activate the environment before any script is called. If you want to check the status of the job, you can run `squeue -u $USER` to see all your submitted jobs. The following is an example of how to use the pipeline:
 
 ### Input submit
 The most common usage of this pipeline is to submit a input or a list of inputs. You can refer to [this document](https://github.com/google-deepmind/alphafold3/blob/main/docs/input.md) for how to create a input file.

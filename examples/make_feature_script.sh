@@ -1,0 +1,1 @@
+make_features --job_name AF_feat --bait_type ligand_smiles --bait_input $1  --prey_type protein --prey_input $2 --destination $3
