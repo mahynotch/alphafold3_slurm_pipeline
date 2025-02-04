@@ -1,8 +1,8 @@
 # Alphafold3 Slurm Pipeline
 This repository contains a pipeline for running large scale screening AlphaFold3 on a Slurm cluster. Some concepts are based on the [AlphaFold2 pipeline](https://github.com/strubelab/alphafold). It currently provides the following features:
-- Make features: Generate features for two list of protein sequences.
+- Make features: Generate features for two list of protein sequences, extracting MSAs and templates.
 - Make complexes: Generate dimer complexes for two list of protein sequences, based on features.
-- Make monomer: Generate monomer models for a list of protein sequences.
+- Make monomer: Generate monomer models for a list of protein sequences listed in a fasta file.
 
 To install it, please follow the instructions below (**This installation guide is for Ibex system of KAUST only. For non-Ibex users, please refer to the [Non-ibex User](#non-ibex) part.**).
 ## Installation
@@ -23,7 +23,7 @@ For non-Ibex users, you need to make several modifications based on the slurm sy
 It is worth noting that the parameter of AF3 should not be distributed or shared without permission. Therefore, if you are looking for the parameter required by AF3. Please refer to [Obtaining Model Parameters](https://github.com/google-deepmind/alphafold3/tree/main?tab=readme-ov-file) of AF3 github page.
 
 ## Usage
-After installation, you can use the pipeline to generate features, complexes and monomers. Please remember that you should run `conda activate <environment directory>` (By default, you can `cd` to this repository and run `conda activate env`) to activate the environment before any script is called. The following is an example of how to use the pipeline:
+After installation, you can use the pipeline to generate features, complexes and monomers. Please remember that you should run `conda activate <environment directory>` (By default, you can `cd` to this repository and run `conda activate ./env`) to activate the environment before any script is called. The following is an example of how to use the pipeline:
 
 ### Input submit
 The most common usage of this pipeline is to submit a input or a list of inputs. You can refer to [this document](https://github.com/google-deepmind/alphafold3/blob/main/docs/input.md) for how to create a input file.
@@ -99,10 +99,11 @@ This script combines the two process in one, but is slower than running them sep
 #### make_monomer
 This script submits jobs to IBEX cluster for predicting protein monomer structures using AlphaFold, support fasta file.
 
-`make_monomer --input FILE1 [FILE2...] --destination OUTPUT_DIR`
+`make_monomer --job_name JOB_NAME --input FILE1 [FILE2...] --destination OUTPUT_DIR`
 
 Required Arguments
 
+-   --job_name: Name for the IBEX job
 -   --input: One or more input files (FASTA/CSV) containing monomer sequences
 -   --destination: Output directory path for predicted structures and job files
 
@@ -117,5 +118,9 @@ Optional Arguments
 -   --check_only_exact: Check and report detailed errors
 -   --check_stat: Print pLDDT, ipTM, and pTM statistics
 
+
+You can also desplay a description of the parameters of the scripts via calling `<command> --help`.
+
 # Acknowledgement
-This tool is partially based on former alphafold wrapper by Javier, the repository is [here](https://github.com/strubelab/alphafold), kudos to him for setting up a standard to follow, and instructions he has provided me. Much appreciation for DeepMind for providing such a great tool.
+This tool is partially based on former alphafold wrapper by Javier, the repository is [here](https://github.com/strubelab/alphafold), kudos to him for setting up a standard to follow, and instructions he has provided me. 
+Much appreciation for DeepMind for providing such a great tool.

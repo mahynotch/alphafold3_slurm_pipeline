@@ -325,7 +325,7 @@ class Alphafold3PullDown(BaseAlphafold3):
             self.check_stat()
 
 class Alphafold3WrapperMonomer(BaseAlphafold3):
-    def __init__(self, sequences: List[str], destination: str, num_sample: int = 5, time_each_protein: int = 120, max_jobs: int = 1500, memory: int = 64, num_cpu: int = 8, gpu_type: Literal["a100", "v100"] = "a100", flag_check: bool = False, flag_detailed: bool = False, flag_stat: bool = False, email: str = None):
+    def __init__(self, job_name: str, sequences: List[str], destination: str, num_sample: int = 5, time_each_protein: int = 120, max_jobs: int = 1500, memory: int = 64, num_cpu: int = 8, gpu_type: Literal["a100", "v100"] = "a100", flag_check: bool = False, flag_detailed: bool = False, flag_stat: bool = False, email: str = None):
         """
         Class to make inputs for AlphaFold3 from user-provided sequences
         :param sequences: list of sequences in fasta format
@@ -338,6 +338,7 @@ class Alphafold3WrapperMonomer(BaseAlphafold3):
         :param flag_check: flag to check only instead of running the job
         :param flag_stat: flag to show the statistics of the job
         """
+        self.job_name = job_name
         self.job_type = "both"
         super().__init__(self.job_type, destination, num_sample, time_each_protein, max_jobs, memory, num_cpu, gpu_type, flag_check, flag_detailed, flag_stat, email)
         self.sequences = read_file_as_df(sequences)

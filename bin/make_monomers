@@ -7,10 +7,6 @@ Script for screening for a list of protein sequences
 import argparse
 from alphafold3_slurm.wrapper import Alphafold3WrapperMonomer
 
-import logging
-
-logging.getLogger().setLevel(logging.INFO)
-
 
 def parsing(args: list = None) -> argparse.Namespace:
     """
@@ -33,11 +29,15 @@ def parsing(args: list = None) -> argparse.Namespace:
             "job array to ibex to predict each sequence."
         )
     )
+    
+    parser.add_argument(
+        "--job_name", help=("Name of the job to submit to ibex."), required=True
+    )
 
     parser.add_argument(
         "--input",
         help=("Fasta file(s) or CSV file(s) with the monomer sequence(s) " "to model."),
-        nargs="+",
+        nargs="+", required=True
     )
 
     parser.add_argument(
@@ -114,11 +114,7 @@ if __name__ == "__main__":
     args = parsing()
     af = Alphafold3WrapperMonomer(
         args.job_name,
-        "make_monomer",
-        args.bait_type,
-        args.bait_input,
-        args.prey_type,
-        args.prey_input,
+        args.input,
         destination=args.destination,
         time_each_protein=args.time,
         memory=args.mem,
