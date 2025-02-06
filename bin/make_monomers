@@ -36,7 +36,7 @@ def parsing(args: list = None) -> argparse.Namespace:
 
     parser.add_argument(
         "--input",
-        help=("Fasta file(s) or CSV file(s) with the monomer sequence(s) " "to model."),
+        help=("Fasta file(s) or CSV file(s) with the monomer sequence(s)"),
         nargs="+", required=True
     )
 
@@ -67,7 +67,7 @@ def parsing(args: list = None) -> argparse.Namespace:
 
     parser.add_argument(
         "--gpu_type",
-        help=("Type of GPU, either a100 or v100, default is a100"),
+        help=("Type of GPU, either a100 or v100, default=a100"),
         default="a100",
     )
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 """
-Script for screening for a list of protein sequences
+Script for screening for a list of protein sequences, this script supports 
 """
 
 import argparse
-from alphafold3_slurm.wrapper import Alphafold3PullDown
+from alphafold3_slurm.wrapper import Alphafold3Multimer
 
 
 def parsing(args: list = None) -> argparse.Namespace:
@@ -26,38 +26,24 @@ def parsing(args: list = None) -> argparse.Namespace:
         description=(
             "Takes one or more FASTA "
             "files with amino acid sequences, and submits a "
-            "job array to ibex to extract features."
+            "job array to ibex to predict each sequence."
         )
     )
-
+    
     parser.add_argument(
         "--job_name", help=("Name of the job to submit to ibex."), required=True
     )
 
     parser.add_argument(
-        "--bait_type",
-        help=(
-            'Bait type, should be one of "protein", "ligand_ccd", "ligand_smiles", "dna", or "rna"'
-        ),
+        "--input_type",
+        help=('Types of input, should be one of should be one of "protein", "ligand_ccd", "ligand_smiles", "dna", or "rna"'),
+        nargs="+", required=True
     )
 
     parser.add_argument(
-        "--bait_input",
-        help=("Fasta file(s) or CSV file(s) with the bait sequence(s) " "to model."),
-        nargs="+",
-    )
-
-    parser.add_argument(
-        "--prey_type",
-        help=(
-            'Prey type, should be one of "protein", "ligand_ccd", "ligand_smiles", "dna", or "rna"'
-        ),
-    )
-
-    parser.add_argument(
-        "--prey_input",
-        help=("Fasta file(s) or CSV file(s) with the prey sequence(s) " "to model."),
-        nargs="+",
+        "--input",
+        help=("Fasta file(s) or CSV file(s) with the monomer sequence(s)"),
+        nargs="+", required=True
     )
 
     parser.add_argument(
@@ -99,7 +85,7 @@ def parsing(args: list = None) -> argparse.Namespace:
     parser.add_argument(
         "--check_only",
         help=(
-            "Only check completion of each sequence, don't run AlphaFold. "
+            "Only check for existing complexes, don't run AlphaFold. "
             "Only check if success without providing in the reason of failure."
         ),
         action="store_true",
@@ -108,8 +94,8 @@ def parsing(args: list = None) -> argparse.Namespace:
     parser.add_argument(
         "--check_only_exact",
         help=(
-            "Only check for existing features, don't run AlphaFold."
-            "Searches for and prints out the error messages in the "
+            "Only check for existing complexes, don't run AlphaFold."
+            " Searches for and prints out the error messages in the "
             "ibex stdout files."
         ),
         action="store_true",
@@ -120,13 +106,11 @@ def parsing(args: list = None) -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parsing()
-    af = Alphafold3PullDown(
+    af = Alphafold3Multimer(
         args.job_name,
         "make_feature",
-        args.bait_type,
-        args.bait_input,
-        args.prey_type,
-        args.prey_input,
+        args.input_type,
+        args.input,
         destination=args.destination,
         time_each_protein=args.time,
         memory=args.mem,

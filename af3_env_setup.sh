@@ -34,7 +34,8 @@ chmod +x bin/run_alphafold
 read -p "Enter the directory where you want to install the environment (default is ./env): " env_dir
 env_dir=${env_dir:-./env}
 env_dir=$(realpath "$env_dir")
-python modify_config.py "env: $env_dir"
+echo env: $env_dir > './alphafold3_slurm/config.yaml'
+# python modify_config.py "env: $env_dir"
 
 read -p "Enter the directory where you store your database (default is /ibex/reference/KSL/alphafold/3.0.0): " db_dir
 db_dir=${db_dir:-/ibex/reference/KSL/alphafold/3.0.0}
