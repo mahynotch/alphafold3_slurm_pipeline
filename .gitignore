@@ -6,3 +6,5 @@ __pycache__
 AF_install.out
 build
 alphafold3_slurm_pipeline/config.yaml
+alphafold3_slurm/__pycache__
+bin/run_alphafold

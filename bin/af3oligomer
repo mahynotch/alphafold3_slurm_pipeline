@@ -5,7 +5,7 @@ Script for screening for a list of protein sequences
 """
 
 import argparse
-from alphafold3_slurm.wrapper import Alphafold3PullDown
+from alphafold3_slurm.wrapper import Alphafold3Multimer
 
 
 def parsing(args: list = None) -> argparse.Namespace:
@@ -24,45 +24,54 @@ def parsing(args: list = None) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Takes one or more FASTA "
-            "files with amino acid sequences, and submits a "
-            "job array to ibex to predict the structure of each paired sequences."
+            "Takes one or more FASTA files with amino acid sequences, and submits a "
+            "job array to ibex to predict the structure of each combinations of sequences."
         )
     )
 
     parser.add_argument(
         "--job_name",
         help=(
-            "Fasta file(s) with the sequence(s) "
-            "to model. Provide one fasta file for each model that you want to "
-            "produce."
+            "Name of the job. This is the name shown in squeue." 
         ),
+        default="AF3_oligomer"
     )
-
+    
     parser.add_argument(
-        "--bait_type",
+        "--make_features",
         help=(
-            'Bait type, should be one of "protein", "ligand_ccd", "ligand_smiles", "dna", or "rna"'
+            "Add this flag to only make features for the complex."
         ),
+        action="store_true",
     )
-
+    
     parser.add_argument(
-        "--bait_input",
-        help=("Fasta file(s) or CSV file(s) with the bait sequence(s) " "to model."),
-        nargs="+",
-    )
-
-    parser.add_argument(
-        "--prey_type",
+        "--make_complex",
         help=(
-            'Prey type, should be one of "protein", "ligand_ccd", "ligand_smiles", "dna", or "rna"'
+            "Add this flag to only make complexes from the existing features."
         ),
+        action="store_true",
+    )
+    
+    parser.add_argument(
+        "--make_both",
+        help=(
+            "Add this flag to make features and then make complexes. "
+            "Note: This would be much slower than running the two separately."
+        ),
+        action="store_true",
     )
 
     parser.add_argument(
-        "--prey_input",
-        help=("Fasta file(s) or CSV file(s) with the prey sequence(s) " "to model."),
-        nargs="+",
+        "--input_type",
+        help=('Types of input, should be one of should be one of "protein", "ligand_ccd", "ligand_smiles", "dna", or "rna"'),
+        nargs="+", required=True
+    )
+
+    parser.add_argument(
+        "--input",
+        help=("Fasta file(s) or CSV file(s) with sequence(s). Note: input_type and input should be in the same order and length."),
+        nargs="+", required=True
     )
 
     parser.add_argument(
@@ -78,7 +87,8 @@ def parsing(args: list = None) -> argparse.Namespace:
 
     parser.add_argument(
         "--feature_path",
-        help=('Directory containing features, should be "destination" of make_feature'),
+        help=('Directory containing features, should be "destination" of make_feature. '
+              'Note: This is for make_complex only. If not specified, the script will look for the features in the destination directory.'),
     )
 
     parser.add_argument(
@@ -139,16 +149,42 @@ def parsing(args: list = None) -> argparse.Namespace:
 
     return parser.parse_args(args)
 
+def check_parameter(args):
+    """
+    Check the parameters for the script
+
+    Args:
+        args (argparse.Namespace): The arguments parsed from the command line
+
+    Raises:
+        ValueError: If the input parameters are not valid
+    """
+    if args.make_features + args.make_complex + args.make_both != 1:
+        raise ValueError("Exactly one of --make_features, --make_complex, or --make_both must be provided.")
+    if args.make_features:
+        if args.feature_path is not None:
+            raise ValueError("Cannot provide --feature_path with --make_features.")
+    if args.make_both:
+        if args.feature_path is not None:
+            raise ValueError("Cannot provide --feature_path with --make_both.")
 
 if __name__ == "__main__":
     args = parsing()
-    af = Alphafold3PullDown(
+    check_parameter(args)
+    
+    job_type = ""
+    if args.make_features:
+        job_type = "make_features"
+    elif args.make_complex:
+        job_type = "make_complex"
+    else:
+        job_type = "both"
+        
+    af = Alphafold3Multimer(
         args.job_name,
-        "both",
-        args.bait_type,
-        args.bait_input,
-        args.prey_type,
-        args.prey_input,
+        job_type,
+        args.input_type,
+        args.input,
         destination=args.destination,
         feature_path=args.feature_path,
         time_each_protein=args.time,

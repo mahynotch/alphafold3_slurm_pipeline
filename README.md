@@ -31,73 +31,68 @@ The most common usage of this pipeline is to submit a input or a list of inputs.
 To run tests on a directory with a.json, b.json, ..., you only need to run tests on this by the following command:
 `submit_input --input <input_folder> --output <output_folder> --time(optional) <time in minutes> --mem(optional) <memory needed>`. To run the script on a single json, all you need to do is replace `<input_folder>` with the path to you target json file. After running this, the outputs will be put in the folder specified in the output parameter.
 
-### Make feature & Make complex
-These are dedicated for alphapulldown, taking one bait and one prey to assemble a complex at a time. To check which job is done, you can add `--check_only` at the end. To provide more information on exact reason of failure, you can add `--check_only_exact`. The `--check_stat` only works for complexes, and produce a box plot of plDDT, ipTM, and pTM. The scripts are:
+### Pulldown
+These are dedicated for alphapulldown, taking one bait and one prey to assemble a dimer complex at a time. To check which job is done, you can add `--check_only` at the end. To provide more information on exact reason of failure, you can add `--check_only_exact`. The `--check_stat` only works for complexes, and produce a box plot of plDDT, ipTM, and pTM.:
 
-#### make_features:
-
-This script submits jobs to IBEX cluster for generating AlphaFold features (MSAs and templates) for protein sequences and other molecular types.
-
-`make_features --job_name JOB_NAME --bait_type TYPE --bait_input FILE1 [FILE2...] --prey_type TYPE --prey_input FILE1 [FILE2...] --destination OUTPUT_DIR`
+`af3pulldown --job_name JOB_NAME --bait_type TYPE --bait_input FILE1 [FILE2...] --prey_type TYPE --prey_input FILE1 [FILE2...] --destination OUTPUT_DIR [--feature_path FEATURES] [--make_features|--make_complex|--make_both]`
 
 Required Arguments
-
--   --job_name: Name for the IBEX job
--   --destination: Output directory path for AlphaFold features and job files
+- --job_name: Name for the IBEX job (default: "AF3_pulldown")
+- --destination: Output directory path for features/structures and job files
+- One of these flags must be specified:
+  - --make_features: Generate only AlphaFold features
+  - --make_complex: Generate only complex predictions (requires existing features)
+  - --make_both: Generate features then predict complexes (slower than running separately)
 
 Input Arguments
-
--   --bait_type: Type of bait molecule ("protein", "ligand_ccd", "ligand_smiles", "dna", "rna")
--   --bait_input: One or more input files for bait sequences, in csv or fasta
--   --prey_type: Type of prey molecule ("protein", "ligand_ccd", "ligand_smiles", "dna", "rna")
--   --prey_input: One or more input files for prey sequences, in csv or fasta
+- --bait_type: Type of bait molecule ("protein", "ligand_ccd", "ligand_smiles", "dna", "rna")
+- --bait_input: One or more input files for bait sequences, in csv or fasta
+- --prey_type: Type of prey molecule ("protein", "ligand_ccd", "ligand_smiles", "dna", "rna")
+- --prey_input: One or more input files for prey sequences, in csv or fasta
+- --feature_path: Directory containing pre-generated features (required for --make_complex)
 
 Optional Arguments
+- --time: Minutes per job (default: 300)
+- --mem: GB memory per job (default: 64) 
+- --mail: Email for job notifications
+- --gpu_type: GPU architecture to use ("a100" or "v100", default: "a100")
+- --max_jobs: Maximum concurrent jobs (default: 1990)
+- --check_only: Check completion status only
+- --check_only_exact: Check and report detailed errors
+- --check_stat: Print pLDDT, ipTM, and pTM statistics
 
--   --time: Minutes per job (default: 300)
--   --mem: GB memory per job (default: 64)
--   --mail: Email for job notifications
--   --max_jobs: Maximum concurrent jobs (default: 1990)
--   --check_only: Check completion status only
--   --check_only_exact: Check and report detailed errors
--   --check_stat: Print pLDDT, ipTM, and pTM statistics
+### Oligomer
 
-#### make_complexes
+This script manages the process of running AlphaFold3 predictions on IBEX cluster for multi-molecule complexes. E.g if inputs are "molecule_list_A.fasta molecule_list_B.fasta molecule_list_B.fasta". Then the results would be: A<sub>1</sub>-B<sub>1</sub>-C<sub>1</sub>,  A<sub>1</sub>-B<sub>1</sub>-C<sub>2</sub> ... A<sub>l</sub>-B<sub>m</sub>-C<sub>n</sub>
 
-This script submits jobs to IBEX cluster for predicting structures of molecular complexes using AlphaFold.
-
-`make_complexes --job_name JOB_NAME --bait_type TYPE --bait_input FILE1 [FILE2...] --prey_type TYPE --prey_input FILE1 [FILE2...] --destination OUTPUT_DIR --feature_path FEATURES`
+`af3oligomer --job_name JOB_NAME --input_type TYPE1 [TYPE2...] --input FILE1 [FILE2...] --destination OUTPUT_DIR [--feature_path FEATURES] [--make_features|--make_complex|--make_both]`
 
 Required Arguments
-
--   --job_name: Name for the IBEX job
--   --destination: Output directory path for redicted structures and job files
--   --feature_path: Directory containing pre-generated features (output from make_feature)
+- --job_name: Name for the IBEX job (default: "AF3_oligomer")
+- --destination: Output directory path for features/structures and job files
+- One of these flags must be specified:
+  - --make_features: Generate only AlphaFold features
+  - --make_complex: Generate only complex predictions (requires existing features)
+  - --make_both: Generate features then predict complexes (slower than running separately)
 
 Input Arguments
-
--   --bait_type: Type of bait molecule ("protein", "ligand_ccd", "ligand_smiles", "dna", "rna")
--   --bait_input: One or more input files for bait sequences
--   --prey_type: Type of prey molecule ("protein", "ligand_ccd", "ligand_smiles", "dna", "rna")
--   --prey_input: One or more input files for prey sequences
+- --input_type: Types of molecules in order ("protein", "ligand_ccd", "ligand_smiles", "dna", "rna")
+- --input: Input files for sequences in corresponding order, in csv or fasta
+  Note: input_type and input must have matching order and length
+- --feature_path: Directory containing pre-generated features (required for --make_complex)
 
 Optional Arguments
+- --time: Minutes per job (default: 300)
+- --mem: GB memory per job (default: 64) 
+- --mail: Email for job notifications
+- --gpu_type: GPU architecture to use ("a100" or "v100", default: "a100")
+- --max_jobs: Maximum concurrent jobs (default: 1990)
+- --check_only: Check completion status only
+- --check_only_exact: Check and report detailed errors
+- --check_stat: Print pLDDT, ipTM, and pTM statistics
 
--   --time: Minutes per job (default: 300)
--   --mem: GB memory per job (default: 64)
--   --mail: Email for job notifications
--   --gpu_type: GPU architecture to use ("a100" or "v100", default: "a100")
--   --max_jobs: Maximum concurrent jobs (default: 1990)
--   --check_only: Check completion status only
--   --check_only_exact: Check and report detailed errors
--   --check_stat: Print pLDDT, ipTM, and pTM statistics
-
-
-#### make_both
-This script combines the two process in one, but is slower than running them seperately. The parameters are similar to that of `make_features`, but you can choose gpu type, so I will skip this.
-
-#### make_monomer
-This script submits jobs to IBEX cluster for predicting protein monomer structures using AlphaFold, support fasta file.
+### Monomer
+This script submits jobs to IBEX cluster for predicting protein monomer structures using AlphaFold, support fasta file:
 
 `make_monomer --job_name JOB_NAME --input FILE1 [FILE2...] --destination OUTPUT_DIR`
 
@@ -119,7 +114,8 @@ Optional Arguments
 -   --check_stat: Print pLDDT, ipTM, and pTM statistics
 
 
-You can also desplay a description of the parameters of the scripts via calling `<command> --help`.
+You can also desplay a description of the parameters of the scripts via calling `<command> --help`. To see more examples, please check [examples](examples/example.md).
+
 
 # Acknowledgement
 This tool is partially based on former alphafold wrapper by Javier, the repository is [here](https://github.com/strubelab/alphafold), kudos to him for setting up a standard to follow, and instructions he has provided me. 
