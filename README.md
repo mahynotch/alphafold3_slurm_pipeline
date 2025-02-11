@@ -29,7 +29,7 @@ After installation, you can use the pipeline to generate features, complexes and
 The most common usage of this pipeline is to submit a input or a list of inputs. You can refer to [this document](https://github.com/google-deepmind/alphafold3/blob/main/docs/input.md) for how to create a input file.
 
 To run tests on a directory with a.json, b.json, ..., you only need to run tests on this by the following command:
-`submit_input --input <input_folder> --output <output_folder> --time(optional) <time in minutes> --mem(optional) <memory needed>`. To run the script on a single json, all you need to do is replace `<input_folder>` with the path to you target json file. After running this, the outputs will be put in the folder specified in the output parameter.
+`submit_input --input <input_folder> --output <output_folder> --time(optional) <time in minutes> --mem(optional) <memory needed>`. To run the script on a single json, all you need to do is replace `<xxx>` according to your own need. After running this, the outputs will be put in the folder specified in the output parameter.
 
 ### Pulldown
 These are dedicated for alphapulldown, taking one bait and one prey to assemble a dimer complex at a time. To check which job is done, you can add `--check_only` at the end. To provide more information on exact reason of failure, you can add `--check_only_exact`. The `--check_stat` only works for complexes, and produce a box plot of plDDT, ipTM, and pTM.:
