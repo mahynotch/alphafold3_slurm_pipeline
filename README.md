@@ -16,7 +16,7 @@ To install it, please follow the instructions below (**This installation guide i
 For non-Ibex users, you need to make several modifications based on the slurm system you use. The following steps are required:
 1. Modify alphafold3_slurm/config.py to set the correct paths for your system, this step is done in the setup script.
 2. Modify `module load cuda/12.2 gcc/12.2.0` part of the "af3_install.slurm" file to load the correct modules for your system. Usually modern systems should have CUDA and GCC installed.
-3. Modify the `--constraint` and `--gres` arguments according to the design of your system. "af3_install.slurm" and "alphfold3_slurm/input_utils.py" files are the file that you need to modify.
+3. Modify the `--constraint` and `--gres` arguments according to the design of your system. "af3_install.slurm" and "alphfold3_slurm/wrapper.py" files are the file that you need to modify.
 4. You should be able to run the installation script as above after these modifications.
 
 ## Weight
