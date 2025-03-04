@@ -192,7 +192,7 @@ if __name__ == "__main__":
     
     job_type = ""
     if args.make_features:
-        job_type = "make_features"
+        job_type = "make_feature"
     elif args.make_complex:
         job_type = "make_complex"
     else:

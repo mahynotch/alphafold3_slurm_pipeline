@@ -1,3 +1,4 @@
+import string
 from pydantic import BaseModel, Field, Json
 from typing import Optional, Literal, List
 from Bio import SeqIO
@@ -325,6 +326,31 @@ def _read_fasta_as_df(fasta_path: str) -> pl.DataFrame:
     data = pl.DataFrame({"id": id_list, "sequence": sequence_list})
     return data
 
+def sanitize_string(s):
+    """
+    String sanitazation function, from alphafold3 codebase.
+    """
+    lower_spaceless = s.lower().replace(' ', '_').replace('-', '_')
+    allowed_chars = set(string.ascii_lowercase + string.digits + '_-.')
+    return ''.join(c for c in lower_spaceless if c in allowed_chars)
+
+def sanitize_id_column(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Sanitizes the 'id' column using the same process as the sanitised_name method:
+    1. Convert to lowercase
+    2. Replace spaces with underscores
+    3. Keep only lowercase letters, digits, underscores, hyphens, and periods
+    
+    Args:
+        df: Input DataFrame with an 'id' column
+        
+    Returns:
+        DataFrame with sanitized 'id' column
+    """
+    return df.with_columns(
+        pl.col("id").map_elements(sanitize_string, return_dtype=pl.Object)
+    )
+
 
 def read_file_as_df(file_paths: str | List[str], type_input: str) -> pl.DataFrame:
     """
@@ -347,8 +373,7 @@ def read_file_as_df(file_paths: str | List[str], type_input: str) -> pl.DataFram
             raise ValueError("Invalid file format, please use files end in fasta, fa, csv or tsv")
         df_list.append(data)
     concat_data: pl.DataFrame = pl.concat(df_list)
-    concat_data = concat_data.with_columns(pl.col("id").str.to_lowercase())
-    concat_data = concat_data.with_columns(pl.col("id").str.replace("-", "_"))
+    concat_data = sanitize_id_column(concat_data)
     concat_data = concat_data.with_columns(pl.lit(type_input).alias("type"))
     return concat_data.unique()
 
