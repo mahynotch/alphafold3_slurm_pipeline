@@ -105,6 +105,12 @@ class BaseAlphafold3:
                 'export LA_FLAGS="--xla_gpu_enable_triton_gemm=false"',
                 "export XLA_PYTHON_CLIENT_PREALLOCATE=true",
                 "export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95",
+                f"if [ -d {os.path.join(self.destination, f'inputs_{self.job_type}', 'job-$SLURM_ARRAY_TASK_ID')} ]; then",
+                "    echo 'Directory exists, proceeding with the job...'",
+                "else",
+                "    echo 'Directory does not exist, exiting...'",
+                "    exit 1",
+                "fi",
                 f"for json in {os.path.join(self.destination, f'inputs_{self.job_type}', 'job-$SLURM_ARRAY_TASK_ID', '*.json')}; do",
                 "echo $json",
                 f"echo {self.job_type}",
@@ -272,6 +278,7 @@ class Alphafold3PullDown(BaseAlphafold3):
         :param prey: prey sequences in fasta format, should be multiple sequences
         """
         check_exist(os.path.join(self.destination, f"inputs_{self.job_type}"))
+        job_index = 0
         for bait_index, (bait_id, bait_seq, bait_type) in enumerate(
             self.bait.iter_rows()
         ):
@@ -300,12 +307,13 @@ class Alphafold3PullDown(BaseAlphafold3):
                 if os.path.exists(os.path.join(self.destination, name)):
                     print(f"{name} already exists, skipping...")
                     continue
-                index = bait_index * len(self.prey) + prey_index
+                # index = bait_index * len(self.prey) + prey_index
                 target_dir = os.path.join(
                     self.destination,
                     f"inputs_{self.job_type}",
-                    f"job-{index // self.protein_per_job}",
+                    f"job-{job_index // self.protein_per_job}",
                 )
+                job_index += 1
                 os.makedirs(target_dir)
                 input_json = json.loads(
                     build_dimer(
@@ -324,6 +332,7 @@ class Alphafold3PullDown(BaseAlphafold3):
         :param prey: prey sequences in fasta format, should be multiple sequences
         """
         check_exist(os.path.join(self.destination, f"inputs_{self.job_type}"))
+        job_index = 0
         for bait_index, (bait_id, bait_seq, bait_type) in enumerate(
             self.bait.iter_rows()
         ):
@@ -338,8 +347,9 @@ class Alphafold3PullDown(BaseAlphafold3):
                 target_dir = os.path.join(
                     self.destination,
                     f"inputs_{self.job_type}",
-                    f"job-{index // self.protein_per_job}",
+                    f"job-{job_index // self.protein_per_job}",
                 )
+                job_index += 1
                 os.makedirs(target_dir, exist_ok=True)
                 input_json = build_dimer(
                     name, bait_type, str(bait_seq), prey_type, str(prey_seq)
@@ -585,6 +595,7 @@ class Alphafold3Multimer(BaseAlphafold3):
         input_paths,
         destination: str,
         feature_path: str = None,
+        exact: bool=False,
         num_sample: int = 5,
         time_each_protein: int = 120,
         max_jobs: int = 1500,
@@ -640,6 +651,7 @@ class Alphafold3Multimer(BaseAlphafold3):
         self.max_jobs = max_jobs
         self.memory = memory
         self.num_cpu = num_cpu
+        self.exact = exact
         self.time_each_protein = time_each_protein
         self.type_list = input_types
         self.num_sample = num_sample
@@ -661,6 +673,7 @@ class Alphafold3Multimer(BaseAlphafold3):
         check_exist(os.path.join(self.destination, f"inputs_{self.job_type}"))
         combined = pl.concat(self.sequence_lists)
         self.combined = combined.unique()
+
         for index, (id, seq, type) in enumerate(self.combined.iter_rows()):
             if os.path.exists(os.path.join(self.destination, id)):
                 print(f"{id} already exists, skipping...")
@@ -682,7 +695,11 @@ class Alphafold3Multimer(BaseAlphafold3):
         :param prey: prey sequences in fasta format, should be multiple sequences
         """
         check_exist(os.path.join(self.destination, f"inputs_{self.job_type}"))
-        combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
+        if self.exact:
+            combinations = zip(*map(lambda x: x.iter_rows(), self.sequence_lists))
+        else:
+            combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
+        job_index = 0
         for index, combination in enumerate(combinations):
             id = "A"
             name = ""
@@ -721,8 +738,9 @@ class Alphafold3Multimer(BaseAlphafold3):
             target_dir = os.path.join(
                 self.destination,
                 f"inputs_{self.job_type}",
-                f"job-{index // self.protein_per_job}",
+                f"job-{job_index // self.protein_per_job}",
             )
+            job_index += 1
             os.makedirs(target_dir)
             input_json = json.loads(
                 build_multimer(name, self.type_list, [""] * len(self.type_list), is_feature=True)
@@ -739,7 +757,11 @@ class Alphafold3Multimer(BaseAlphafold3):
         :param prey: prey sequences in fasta format, should be multiple sequences
         """
         check_exist(os.path.join(self.destination, f"inputs_{self.job_type}"))
-        combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
+        if self.exact:
+            combinations = zip(*map(lambda x: x.iter_rows(), self.sequence_lists))
+        else:
+            combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
+        job_index = 0
         for index, combination in enumerate(combinations):
             name = ""
             seqs = []
@@ -758,8 +780,9 @@ class Alphafold3Multimer(BaseAlphafold3):
             target_dir = os.path.join(
                 self.destination,
                 f"inputs_{self.job_type}",
-                f"job-{index // self.protein_per_job}",
+                f"job-{job_index // self.protein_per_job}",
             )
+            job_index += 1
             os.makedirs(target_dir)
             input_json = build_multimer(name, self.type_list, seqs)
             with open(os.path.join(target_dir, f"{name}.json"), "w") as f:
@@ -789,7 +812,10 @@ class Alphafold3Multimer(BaseAlphafold3):
 
         elif self.job_type == "make_complex" or self.job_type == "both":
             status = np.zeros(self.total_length)
-            combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
+            if self.exact:
+                combinations = zip(*map(lambda x: x.iter_rows(), self.sequence_lists))
+            else:
+                combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
             name_list = []
             for index, combination in enumerate(combinations):
                 name = ""

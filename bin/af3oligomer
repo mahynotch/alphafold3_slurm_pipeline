@@ -38,7 +38,7 @@ def parsing(args: list = None) -> argparse.Namespace:
     )
     
     parser.add_argument(
-        "--make_features",
+        "--make_feature",
         help=(
             "Add this flag to only make features for the complex."
         ),
@@ -147,6 +147,15 @@ def parsing(args: list = None) -> argparse.Namespace:
         action="store_true",
     )
 
+    parser.add_argument(
+        "--exact",
+        help=(
+            "Using direct combination instead of using caritisian product. e.g. A_1-B_1, A_2-B_2, A_3-B_3 "
+            "instead of A_1-B_1, A_1-B_2, A_1-B_3, A_2-B_1, A_2-B_2, A_2-B_3, A_3-B_1, A_3-B_2, A_3-B_3."
+        ),
+        action="store_true",
+    )
+
     return parser.parse_args(args)
 
 def check_parameter(args):
@@ -159,11 +168,11 @@ def check_parameter(args):
     Raises:
         ValueError: If the input parameters are not valid
     """
-    if args.make_features + args.make_complex + args.make_both != 1:
-        raise ValueError("Exactly one of --make_features, --make_complex, or --make_both must be provided.")
-    if args.make_features:
+    if args.make_feature + args.make_complex + args.make_both != 1:
+        raise ValueError("Exactly one of --make_feature, --make_complex, or --make_both must be provided.")
+    if args.make_feature:
         if args.feature_path is not None:
-            raise ValueError("Cannot provide --feature_path with --make_features.")
+            raise ValueError("Cannot provide --feature_path with --make_feature.")
     if args.make_both:
         if args.feature_path is not None:
             raise ValueError("Cannot provide --feature_path with --make_both.")
@@ -173,8 +182,8 @@ if __name__ == "__main__":
     check_parameter(args)
     
     job_type = ""
-    if args.make_features:
-        job_type = "make_features"
+    if args.make_feature:
+        job_type = "make_feature"
     elif args.make_complex:
         job_type = "make_complex"
     else:
@@ -187,6 +196,7 @@ if __name__ == "__main__":
         args.input,
         destination=args.destination,
         feature_path=args.feature_path,
+        exact=args.exact,
         time_each_protein=args.time,
         memory=args.mem,
         email=args.mail,
