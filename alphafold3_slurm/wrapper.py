@@ -5,7 +5,7 @@ from .input_utils import (
     check_exist,
     build_multimer,
 )
-from .stat_utils import collect_statistics, plot_confidence_boxplot
+from .stat_utils import collect_statistics, plot_confidence_boxplot, collect_statistics_exact
 from .config import Config
 from typing import Literal, List
 from itertools import product
@@ -14,6 +14,7 @@ import polars as pl
 import numpy as np
 import os
 import shutil
+from tqdm import tqdm
 
 config = Config()
 
@@ -135,7 +136,7 @@ class BaseAlphafold3:
         print(f"Job submitted")
 
     def detailed_check(self):
-        for file_name in os.listdir(os.path.join(self.destination, "ibex_out")):
+        for file_name in tqdm(os.listdir(os.path.join(self.destination, "ibex_out"))):
             with open(os.path.join(self.destination, "ibex_out", file_name), "r") as f:
                 lines = f.readlines()
                 for index, line in enumerate(lines):
@@ -257,7 +258,7 @@ class Alphafold3PullDown(BaseAlphafold3):
         check_exist(os.path.join(self.destination, f"inputs_{self.job_type}"))
         combined = pl.concat([self.bait, self.prey])
         self.combined = combined.unique()
-        for index, (id, seq, type) in enumerate(self.combined.iter_rows()):
+        for index, (id, seq, type) in tqdm(enumerate(self.combined.iter_rows())):
             if os.path.exists(os.path.join(self.destination, id)):
                 print(f"{id} already exists, skipping...")
                 continue
@@ -365,7 +366,7 @@ class Alphafold3PullDown(BaseAlphafold3):
         if self.job_type == "make_feature":
             status = np.zeros(len(self.bait) + len(self.prey))
             combined = pl.concat([self.bait, self.prey])
-            for index, (id, seq, type) in enumerate(combined.iter_rows()):
+            for index, (id, seq, type) in tqdm(enumerate(combined.iter_rows())):
                 target_dir = os.path.join(self.destination, id)
                 if os.path.exists(target_dir):
                     print(f"{id} done")
@@ -381,9 +382,9 @@ class Alphafold3PullDown(BaseAlphafold3):
 
         elif self.job_type == "make_complex" or self.job_type == "both":
             status = np.zeros((len(self.bait), len(self.prey)))
-            for bait_index, (bait_id, bait_seq, bait_type) in enumerate(
+            for bait_index, (bait_id, bait_seq, bait_type) in tqdm(enumerate(
                 self.bait.iter_rows()
-            ):
+            )):
                 for prey_index, (prey_id, prey_seq, prey_type) in enumerate(
                     self.prey.iter_rows()
                 ):
@@ -655,7 +656,12 @@ class Alphafold3Multimer(BaseAlphafold3):
         self.time_each_protein = time_each_protein
         self.type_list = input_types
         self.num_sample = num_sample
-        self.total_length = sum(map(lambda x: len(x), self.sequence_lists))
+        if self.exact:
+            self.total_length = len(self.sequence_lists[0])
+        elif self.job_type == "make_feature":  
+            self.total_length = sum(map(lambda x: len(x), self.sequence_lists))
+        else:
+            self.total_length = np.prod(list(map(lambda x: len(x), self.sequence_lists)))
         if self.total_length < self.max_jobs:
             self.max_jobs = self.total_length
         self.protein_per_job = self.total_length // self.max_jobs
@@ -674,7 +680,7 @@ class Alphafold3Multimer(BaseAlphafold3):
         combined = pl.concat(self.sequence_lists)
         self.combined = combined.unique()
 
-        for index, (id, seq, type) in enumerate(self.combined.iter_rows()):
+        for index, (id, seq, type) in tqdm(enumerate(self.combined.iter_rows())):
             if os.path.exists(os.path.join(self.destination, id)):
                 print(f"{id} already exists, skipping...")
                 continue
@@ -700,7 +706,7 @@ class Alphafold3Multimer(BaseAlphafold3):
         else:
             combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
         job_index = 0
-        for index, combination in enumerate(combinations):
+        for index, combination in tqdm(enumerate(combinations)):
             id = "A"
             name = ""
             features = []
@@ -762,7 +768,7 @@ class Alphafold3Multimer(BaseAlphafold3):
         else:
             combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
         job_index = 0
-        for index, combination in enumerate(combinations):
+        for index, combination in tqdm(enumerate(combinations)):
             name = ""
             seqs = []
             for seq_index, (seq_id, seq, seq_type) in enumerate(combination):
@@ -796,7 +802,7 @@ class Alphafold3Multimer(BaseAlphafold3):
         if self.job_type == "make_feature":
             status = np.zeros(self.total_length)
             combined = pl.concat(self.sequence_lists)
-            for index, (id, seq, type) in enumerate(combined.iter_rows()):
+            for index, (id, seq, type) in tqdm(enumerate(combined.iter_rows())):
                 target_dir = os.path.join(self.destination, id)
                 if os.path.exists(target_dir):
                     print(f"{id} done")
@@ -817,7 +823,7 @@ class Alphafold3Multimer(BaseAlphafold3):
             else:
                 combinations = product(*map(lambda x: x.iter_rows(), self.sequence_lists))
             name_list = []
-            for index, combination in enumerate(combinations):
+            for index, combination in tqdm(enumerate(combinations)):
                 name = ""
                 for seq_index, (seq_id, seq, seq_type) in enumerate(combination):
                     if seq_index == 0:
@@ -834,12 +840,14 @@ class Alphafold3Multimer(BaseAlphafold3):
                 else:
                     print(f"{name} not done")
                 name_list.append(name)
-            output = f"Total number of jobs: {status.shape[1]}\n Number of jobs done: {int(np.sum(status))}, Number of jobs not done: {int(self.total_length - np.sum(status))}"
+            output = f"Total number of jobs: {self.total_length}\n Number of jobs done: {int(np.sum(status))}, Number of jobs not done: {int(self.total_length - np.sum(status))}"
             print(output)
             failed_jobs = np.argwhere(status == 0)
             print("Failed jobs:")
+            print(failed_jobs)
+            print(self.total_length)
             for i in failed_jobs:
-                print(f"{name_list[i]} failed")
+                print(f"{name_list[int(i)]} failed")
 
     def check_stat(self):
         """
@@ -847,9 +855,14 @@ class Alphafold3Multimer(BaseAlphafold3):
         """
         stat_dest = os.path.join(self.destination, "statistics")
         os.makedirs(stat_dest, exist_ok=True)
-        df = collect_statistics(
-            (list(input["id"]) for input in self.sequence_lists), self.destination
-        )
+        if self.exact:
+            df = collect_statistics_exact(
+                (list(input["id"]) for input in self.sequence_lists), self.destination
+            )
+        else:
+            df = collect_statistics(
+                (list(input["id"]) for input in self.sequence_lists), self.destination
+            )
         plot_confidence_boxplot(df, os.path.join(stat_dest, "statistics.png"))
         df.write_csv(os.path.join(stat_dest, "statistics.csv"))
 
@@ -877,7 +890,7 @@ class Alphafold3Multimer(BaseAlphafold3):
                 self._sbatch_submit(self.print_script())
 
         if self.flag_check:
-            print(f"Total number of jobs: {len(self.prey)}")
+            print(f"Checking jobs")
             self.check_job()
         if self.flag_detailed:
             print("Checking detailed status")

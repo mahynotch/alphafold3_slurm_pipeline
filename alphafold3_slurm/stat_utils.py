@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json, os
 from itertools import product
+from tqdm import tqdm
 
 
 def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
@@ -110,11 +111,22 @@ def collect_statistics(name_set: set[list], complex_dir):
     df = _collect_statistics(name_list, complex_dir)
     return df
 
+def collect_statistics_exact(name_set: set[list], complex_dir):
+    """
+    Collect statistics for a set of molecule names, for exact input
+    :param name_set: a set containing lists of molecule names, e.g. (bait_list, prey_list)
+    :param complex_dir: path to the directory containing the complex folders
+    """
+    name_combinations = list(zip(*name_set))
+    name_list = list(map(lambda x: "-".join(x), name_combinations))
+    df = _collect_statistics(name_list, complex_dir)
+    return df
+
 
 def _collect_statistics(name_list, complex_dir):
     # Initialize empty lists to store results
     results = []
-    for name in name_list:
+    for name in tqdm(name_list):
         result = {"name": name, "pTM": np.nan, "pLDDT": np.nan, "ipTM": np.nan}
         # Find matching folder
         matching_folders = [d for d in os.listdir(complex_dir) if d.startswith(name)]
