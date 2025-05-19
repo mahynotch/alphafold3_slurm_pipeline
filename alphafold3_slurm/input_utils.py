@@ -330,6 +330,7 @@ def sanitize_string(s):
     """
     String sanitazation function, from alphafold3 codebase.
     """
+    s = str(s)
     lower_spaceless = s.lower().replace(' ', '_').replace('-', '_')
     allowed_chars = set(string.ascii_lowercase + string.digits + '_-.')
     return ''.join(c for c in lower_spaceless if c in allowed_chars)
@@ -359,6 +360,7 @@ def read_file_as_df(file_paths: str | List[str], type_input: str) -> pl.DataFram
     :param file_path: path to the file
     :return: list of sequences
     """
+    print(f"Reading file {file_paths}...")
     if type(file_paths) == str:
         file_paths = [file_paths]
     df_list = []
@@ -375,7 +377,60 @@ def read_file_as_df(file_paths: str | List[str], type_input: str) -> pl.DataFram
     concat_data: pl.DataFrame = pl.concat(df_list)
     concat_data = sanitize_id_column(concat_data)
     concat_data = concat_data.with_columns(pl.lit(type_input).alias("type"))
-    return concat_data.unique()
+    print(f"Final size of the table: {concat_data.shape}")
+    return concat_data
+
+def filter_dataframes(df_list: List[pl.DataFrame]) -> List[pl.DataFrame]:
+    """
+    Process a list of Polars dataframes:
+    1. Horizontally concatenate them
+    2. Drop null values
+    3. Keep only unique rows
+    4. Split them back into a list of dataframes
+    
+    Args:
+        df_list: List of Polars dataframes, each with 'id', 'sequence', and 'type' columns
+        
+    Returns:
+        List of Polars dataframes after processing
+    """
+    import polars as pl
+    
+    # Check if the list is empty
+    if not df_list:
+        return []
+    
+    # Rename columns to make them unique
+    renamed_dfs = []
+    for i, df in enumerate(df_list):
+        renamed_df = df.rename({
+            "id": f"id_{i}",
+            "sequence": f"sequence_{i}",
+            "type": f"type_{i}"
+        })
+        renamed_dfs.append(renamed_df)
+    
+    # Horizontally concatenate the dataframes
+    concatenated_df = pl.concat(renamed_dfs, how="horizontal")
+    
+    # Drop rows with null values
+    concatenated_df = concatenated_df.drop_nulls()
+    
+    # Keep only unique rows
+    concatenated_df = concatenated_df.unique()
+    
+    # Split the dataframe back into a list
+    result_dfs = []
+    for i in range(len(df_list)):
+        cols_to_select = [f"id_{i}", f"sequence_{i}", f"type_{i}"]
+        result_df = concatenated_df.select(cols_to_select).rename({
+            f"id_{i}": "id",
+            f"sequence_{i}": "sequence",
+            f"type_{i}": "type"
+        })
+        result_dfs.append(result_df)
+    
+    return result_dfs
 
 
 def check_exist(destination):

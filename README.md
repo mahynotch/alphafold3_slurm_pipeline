@@ -83,6 +83,7 @@ Input Arguments
 
 Optional Arguments
 - --time: Minutes per job (default: 300)
+- --exact: Exact mode for complex generation, when this flag is set, the script will generate combinations in the form of A<sub>1</sub>-B<sub>1</sub>-C<sub>1</sub>,  A<sub>2</sub>-B<sub>2</sub>-C<sub>2</sub> ... A<sub>n</sub>-B<sub>n</sub>-C<sub>n</sub> instead, but beware inputs should have the same size.
 - --mem: GB memory per job (default: 64) 
 - --mail: Email for job notifications
 - --gpu_type: GPU architecture to use ("a100" or "v100", default: "a100")

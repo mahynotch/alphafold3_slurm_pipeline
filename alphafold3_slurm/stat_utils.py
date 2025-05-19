@@ -10,6 +10,7 @@ from tqdm import tqdm
 def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
     # Prepare data for pLDDT plotting
     df = df.drop_nans()
+    df = df.drop_nulls()
     plddt_data = pl.DataFrame(
         {"Score": pl.concat([df["pLDDT"]]), "Metric": ["pLDDT"] * (len(df))}
     )
@@ -68,18 +69,18 @@ def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
     stats_text = (
         f"Median Scores:\n"
         f"pLDDT:\n"
-        f"{df['pLDDT'].median():.2f}\n"
+        f"{df['pLDDT'].median() if df['pLDDT'].median() is not None else 0.00:.2f}\n"
         f"pTM:\n"
-        f"{df['pTM'].median():.2f}\n"
+        f"{df['pTM'].median() if df['pTM'].median() is not None else 0.00:.2f}\n"
         f"ipTM:\n"
-        f"{df['ipTM'].median():.2f}\n\n"
+        f"{df['ipTM'].median() if df['ipTM'].median() is not None else 0.00:.2f}\n\n"
         f"Mean Scores:\n"
         f"pLDDT:\n"
-        f"{df['pLDDT'].mean():.2f} ± {df['pLDDT'].std():.2f}\n"
+        f"{df['pLDDT'].mean() if df['pLDDT'].mean() is not None else 0.00:.2f} ± {df['pLDDT'].std() if df['pLDDT'].std() is not None else 0.00:.2f}\n"
         f"pTM:\n"
-        f"{df['pTM'].mean():.2f} ± {df['pTM'].std():.2f}\n"
+        f"{df['pTM'].mean() if df['pTM'].mean() is not None else 0.00:.2f} ± {df['pTM'].std() if df['pTM'].std() is not None else 0.00:.2f}\n"
         f"ipTM:\n"
-        f"{df['ipTM'].median():.2f} ± {df['ipTM'].std():.2f}\n\n"
+        f"{df['ipTM'].mean() if df['ipTM'].mean() is not None else 0.00:.2f} ± {df['ipTM'].std() if df['ipTM'].std() is not None else 0.00:.2f}\n\n"
     )
 
     plt.text(
@@ -111,6 +112,14 @@ def collect_statistics(name_set: set[list], complex_dir):
     df = _collect_statistics(name_list, complex_dir)
     return df
 
+def special_join(combination):
+    """
+    Join a list of strings with a special separator
+    :param name_set: a set containing lists of molecule names, e.g. (bait_list, prey_list)
+    :return: a string with the joined names
+    """
+    return "-".join([x if x is not None else "" for x in combination])
+
 def collect_statistics_exact(name_set: set[list], complex_dir):
     """
     Collect statistics for a set of molecule names, for exact input
@@ -118,23 +127,23 @@ def collect_statistics_exact(name_set: set[list], complex_dir):
     :param complex_dir: path to the directory containing the complex folders
     """
     name_combinations = list(zip(*name_set))
-    name_list = list(map(lambda x: "-".join(x), name_combinations))
+    name_list = list(map(special_join, name_combinations))
     df = _collect_statistics(name_list, complex_dir)
     return df
 
 
 def _collect_statistics(name_list, complex_dir):
-    # Initialize empty lists to store results
     results = []
     for name in tqdm(name_list):
-        result = {"name": name, "pTM": np.nan, "pLDDT": np.nan, "ipTM": np.nan}
+        result = {"name": name, "pTM": np.nan, "chainPAE": np.nan, "pLDDT": np.nan, "ipTM": np.nan}
         # Find matching folder
-        matching_folders = [d for d in os.listdir(complex_dir) if d.startswith(name)]
+        matching_folder = os.path.join(complex_dir, name)
 
-        if matching_folders:
-            folder = matching_folders[0]
+        if matching_folder and os.path.exists(matching_folder):
+            folder = matching_folder
+            basename = os.path.basename(folder)
             json_file = os.path.join(
-                complex_dir, folder, f"{folder}_summary_confidences.json"
+                folder, f"{basename}_summary_confidences.json"
             )
 
             if os.path.exists(json_file):
@@ -143,11 +152,13 @@ def _collect_statistics(name_list, complex_dir):
                         data = json.load(f)
                         result["pTM"] = data["ptm"]
                         result["ipTM"] = data["iptm"]
+                        if len(data["chain_pair_pae_min"]) > 1:
+                            result["chainPAE"] = data["chain_pair_pae_min"][0][1]
                 except:
                     pass
 
             atom_met_file = os.path.join(
-                complex_dir, folder, f"{folder}_confidences.json"
+                folder, f"{basename}_confidences.json"
             )
             if os.path.exists(atom_met_file):
                 try:
