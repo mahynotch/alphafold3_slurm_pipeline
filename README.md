@@ -95,7 +95,7 @@ Optional Arguments
 ### Monomer
 This script submits jobs to IBEX cluster for predicting protein monomer structures using AlphaFold, support fasta file:
 
-`make_monomer --job_name JOB_NAME --input FILE1 [FILE2...] --destination OUTPUT_DIR`
+`make_monomers --job_name JOB_NAME --input FILE1 [FILE2...] --destination OUTPUT_DIR`
 
 Required Arguments
 
