@@ -468,7 +468,7 @@ class Alphafold3WrapperMonomer(BaseAlphafold3):
         )
         
         # Load sequences
-        self.sequences = read_file_as_df(sequences)
+        self.sequences = read_file_as_df(sequences, type_input="protein")
         
         # Determine job distribution
         self.max_jobs = min(self.max_jobs, len(self.sequences))

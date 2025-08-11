@@ -38,7 +38,7 @@ fi
 python modify_config.py "env: $1"
 
 cd alphafold3/
-pip install -e --no-deps . --verbose 
+pip install --no-deps -e . --verbose 
 
 build_data
 
