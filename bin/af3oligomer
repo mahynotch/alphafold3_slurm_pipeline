@@ -95,7 +95,7 @@ def parsing(args: list = None) -> argparse.Namespace:
         "--time",
         help=("Time in minutes to give to each job. " '(default="300")'),
         type=int,
-        default=300,
+        default=600,
     )
 
     parser.add_argument(

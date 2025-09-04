@@ -34,13 +34,13 @@ To run tests on a directory with a.json, b.json, ..., you only need to run tests
 ### Pulldown
 These are dedicated for alphapulldown, taking one bait and one prey to assemble a dimer complex at a time. To check which job is done, you can add `--check_only` at the end. To provide more information on exact reason of failure, you can add `--check_only_exact`. The `--check_stat` only works for complexes, and produce a box plot of plDDT, ipTM, and pTM.:
 
-`af3pulldown --job_name JOB_NAME --bait_type TYPE --bait_input FILE1 [FILE2...] --prey_type TYPE --prey_input FILE1 [FILE2...] --destination OUTPUT_DIR [--feature_path FEATURES] [--make_features|--make_complex|--make_both]`
+`af3pulldown --job_name JOB_NAME --bait_type TYPE --bait_input FILE1 [FILE2...] --prey_type TYPE --prey_input FILE1 [FILE2...] --destination OUTPUT_DIR [--feature_path FEATURES] [--make_feature|--make_complex|--make_both]`
 
 Required Arguments
 - --job_name: Name for the IBEX job (default: "AF3_pulldown")
 - --destination: Output directory path for features/structures and job files
 - One of these flags must be specified:
-  - --make_features: Generate only AlphaFold features
+  - --make_feature: Generate only AlphaFold features
   - --make_complex: Generate only complex predictions (requires existing features)
   - --make_both: Generate features then predict complexes (slower than running separately)
 
@@ -65,13 +65,13 @@ Optional Arguments
 
 This script manages the process of running AlphaFold3 predictions on IBEX cluster for multi-molecule complexes. E.g if inputs are "molecule_list_A.fasta molecule_list_B.fasta molecule_list_B.fasta". Then the results would be: A<sub>1</sub>-B<sub>1</sub>-C<sub>1</sub>,  A<sub>1</sub>-B<sub>1</sub>-C<sub>2</sub> ... A<sub>l</sub>-B<sub>m</sub>-C<sub>n</sub>
 
-`af3oligomer --job_name JOB_NAME --input_type TYPE1 [TYPE2...] --input FILE1 [FILE2...] --destination OUTPUT_DIR [--feature_path FEATURES] [--make_features|--make_complex|--make_both]`
+`af3oligomer --job_name JOB_NAME --input_type TYPE1 [TYPE2...] --input FILE1 [FILE2...] --destination OUTPUT_DIR [--feature_path FEATURES] [--make_feature|--make_complex|--make_both]`
 
 Required Arguments
 - --job_name: Name for the IBEX job (default: "AF3_oligomer")
 - --destination: Output directory path for features/structures and job files
 - One of these flags must be specified:
-  - --make_features: Generate only AlphaFold features
+  - --make_feature: Generate only AlphaFold features
   - --make_complex: Generate only complex predictions (requires existing features)
   - --make_both: Generate features then predict complexes (slower than running separately)
 
