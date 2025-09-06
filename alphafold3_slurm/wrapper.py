@@ -121,6 +121,7 @@ export TF_FORCE_UNIFIED_MEMORY=1
 export LA_FLAGS="--xla_gpu_enable_triton_gemm=false"
 export XLA_PYTHON_CLIENT_PREALLOCATE=true
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95
+export XLA_FLAGS="--xla_disable_hlo_passes=custom-kernel-fusion-rewriter"
 
 if [ -d {os.path.join(self.destination, f'inputs_{self.job_type}', 'job-$SLURM_ARRAY_TASK_ID')} ]; then
     echo 'Directory exists, proceeding with the job...'
