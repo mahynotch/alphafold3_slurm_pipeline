@@ -73,7 +73,7 @@ class BaseAlphafold3:
         model_dir = config["parameter"]
         db_dir = config["db"]
         
-        base_cmd = f"run_alphafold --json_path=$json --model_dir={model_dir} --db_dir={db_dir}"
+        base_cmd = f"run_alphafold --json_path=$json --model_dir={model_dir} --db_dir={db_dir} --flash_attention_implementation=xla"
         
         if self.job_type == "make_feature":
             return f"{base_cmd} --output_dir={self.destination} --norun_inference"
