@@ -1,3 +1,3 @@
 db: /ibex/reference/KSL/alphafold/3.0.0
 env: /ibex/user/mah/alphafold3_ibex_pipeline/alphafold3_slurm_pipeline/env
-parameter: ./parameter
+parameter: /ibex/user/mah/alphafold3_ibex_pipeline/parameter
