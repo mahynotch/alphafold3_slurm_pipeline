@@ -1,118 +1,69 @@
 #!/usr/bin/env python3
 
-"""
-Script for screening for a list of protein sequences
-"""
-
 import argparse
+
 from alphafold3_slurm.wrapper import Alphafold3WrapperMonomer
 
 
-def parsing(args: list = None) -> argparse.Namespace:
-    """
-    Creates the argument parser instance and applies it to the command line
-    input
-
-    Args:
-        args (list, optional): List of the arguments to be parsed (only to be
-            used for testing). If none is provided, it is taken from sys.argv.
-            Defaults to None.
-
-    Returns:
-        argparse.Namespace
-    """
-
+def parsing(args: list | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Takes one or more FASTA "
-            "files with amino acid sequences, and submits a "
+            "Takes one or more FASTA files with amino acid sequences and submits a "
             "job array to ibex to predict each sequence."
         )
     )
-    
-    parser.add_argument(
-        "--job_name", help=("Name of the job to submit to ibex."), required=True
-    )
-
+    parser.add_argument("--job_name", help="Name of the job to submit to ibex.", required=True)
     parser.add_argument(
         "--input",
-        help=("Fasta file(s) or CSV file(s) with the monomer sequence(s)"),
-        nargs="+", required=True
-    )
-
-    parser.add_argument(
-        "--destination",
-        help=(
-            "Path for saving the resulting AlphaFold features. It will create "
-            "one subdirectory for each model. Also will contain the sequence files "
-            "as they were submitted to ibex, the script that was submitted and the "
-            "ibex stdout files."
-        ),
+        help="FASTA/CSV/TSV file(s) with monomer sequences.",
+        nargs="+",
         required=True,
     )
-
     parser.add_argument(
-        "--time",
-        help=("Time in minutes to give to each job. " '(default="300")'),
-        type=int,
-        default=300,
+        "--destination",
+        help="Directory for AlphaFold inputs, outputs, scripts, and Slurm logs.",
+        required=True,
     )
-
-    parser.add_argument(
-        "--mem",
-        help=("Memory in GB to allocate to each job. " '(default="64")'),
-        type=int,
-        default=64,
-    )
-
+    parser.add_argument("--time", help="Minutes to allocate per job.", type=int, default=300)
+    parser.add_argument("--mem", help="Memory in GB per job.", type=int, default=64)
     parser.add_argument(
         "--gpu_type",
-        help=("Type of GPU, either a100 or v100, default=a100"),
+        help="GPU type to request (a100 or v100).",
         default="a100",
     )
-
-    parser.add_argument(
-        "--mail", help=("Email to send notifications about the " "job progess in ibex.")
-    )
-
+    parser.add_argument("--mail", help="Email for job notifications.")
     parser.add_argument(
         "--max_jobs",
-        help=("Maximum number of jobs to submit simultaneously to ibex. Default=1990"),
+        help="Maximum number of concurrent array jobs.",
         type=int,
         default=1990,
     )
-
+    parser.add_argument(
+        "--overwrite",
+        help="Replace an existing generated inputs directory before writing new inputs.",
+        action="store_true",
+    )
     parser.add_argument(
         "--check_only",
-        help=(
-            "Only check for existing complexes, don't run AlphaFold. "
-            "Only check if success without providing in the reason of failure."
-        ),
+        help="Check for completed outputs only; do not submit jobs.",
         action="store_true",
     )
-
     parser.add_argument(
         "--check_only_exact",
-        help=(
-            "Only check for existing complexes, don't run AlphaFold."
-            " Searches for and prints out the error messages in the "
-            "ibex stdout files."
-        ),
+        help="Check outputs and print detailed failure information from Slurm logs.",
         action="store_true",
     )
-
     parser.add_argument(
         "--check_stat",
-        help=("Prints out the statistics of the job, consists of pLDDT, ipTM, pTM."),
+        help="Write pLDDT, ipTM, and pTM statistics for completed jobs.",
         action="store_true",
     )
-
     return parser.parse_args(args)
 
 
 if __name__ == "__main__":
     args = parsing()
-    af = Alphafold3WrapperMonomer(
+    Alphafold3WrapperMonomer(
         args.job_name,
         args.input,
         destination=args.destination,
@@ -124,5 +75,5 @@ if __name__ == "__main__":
         flag_detailed=args.check_only_exact,
         flag_stat=args.check_stat,
         gpu_type=args.gpu_type,
-    )
-    af.run()
+        overwrite=args.overwrite,
+    ).run()

@@ -6,7 +6,7 @@ Predicting protein-protein interaction between two sequences:
 
 1. Making features only:
 ```bash
-af3pulldown --make_features \
+af3pulldown --make_feature \
   --bait_type protein --bait_input protein1.fasta \
   --prey_type protein --prey_input protein2.fasta \
   --destination ./features
@@ -27,7 +27,7 @@ Predicting a complex of three different molecules:
 
 1. Making features only:
 ```bash
-af3oligomer --make_features \
+af3oligomer --make_feature \
   --input_type protein protein dna \
   --input protein1.fasta protein2.fasta dna1.fasta \
   --destination ./features
@@ -42,13 +42,13 @@ af3oligomer --make_complex \
   --feature_path ./features
 ```
 
-## af3monomer Example
+## make_monomers Example
 
 Predicting structure for single protein sequences:
 
 1. Predicting a single protein structure:
 ```bash
-af3monomer \
+make_monomers \
   --job_name test_protein \
   --input protein.fasta \
   --destination ./output
@@ -56,10 +56,10 @@ af3monomer \
 
 2. Predicting multiple protein structures:
 ```bash
-af3monomer \
+make_monomers \
   --job_name batch_prediction \
   --input protein1.fasta protein2.fasta protein3.fasta \
-  --destination ./output 
+  --destination ./output
 ```
 
 ## submit_input Example

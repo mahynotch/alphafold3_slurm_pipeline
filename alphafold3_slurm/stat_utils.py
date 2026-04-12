@@ -1,43 +1,42 @@
+import json
+from itertools import product
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
-import matplotlib.pyplot as plt
 import seaborn as sns
-import json, os
-from itertools import product
 from tqdm import tqdm
 
 
-def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
-    # Prepare data for pLDDT plotting
-    df = df.drop_nans()
-    df = df.drop_nulls()
-    plddt_data = pl.DataFrame(
-        {"Score": pl.concat([df["pLDDT"]]), "Metric": ["pLDDT"] * (len(df))}
-    )
+def plot_confidence_boxplot(df: pl.DataFrame, save_path: str | Path) -> None:
+    df = df.drop_nans().drop_nulls()
+    save_path = Path(save_path)
 
-    # Prepare data for pTM plotting
-    ptm_data = pl.DataFrame(
-        {"Score": pl.concat([df["pTM"]]), "Metric": ["pTM"] * (len(df))}
-    )
+    if df.is_empty():
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No valid confidence scores found", ha="center", va="center")
+        ax.set_axis_off()
+        fig.tight_layout()
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        return
 
-    # Prepare data for ipTM plotting
-    iptm_data = pl.DataFrame(
-        {"Score": pl.concat([df["ipTM"]]), "Metric": ["ipTM"] * (len(df))}
-    )
+    plddt_data = pl.DataFrame({"Score": df["pLDDT"], "Metric": ["pLDDT"] * len(df)})
+    ptm_data = pl.DataFrame({"Score": df["pTM"], "Metric": ["pTM"] * len(df)})
+    iptm_data = pl.DataFrame({"Score": df["ipTM"], "Metric": ["ipTM"] * len(df)})
     plot_data = pl.concat([plddt_data, ptm_data, iptm_data])
 
-    # Set style
-    colors = ["#2ecc71"]  # Green for AF2, Red for AF3
-
-    # Create figure
     fig, ax = plt.subplots(figsize=(10, 7))
-
-    # Create box plot
-    bp = sns.boxplot(
-        data=plot_data, x="Metric", y="Score", palette=colors, width=0.7, linewidth=2
+    sns.boxplot(
+        data=plot_data,
+        x="Metric",
+        y="Score",
+        color="#2ecc71",
+        width=0.7,
+        linewidth=2,
+        ax=ax,
     )
-
-    # Add individual points with jitter
     sns.stripplot(
         data=plot_data,
         x="Metric",
@@ -45,44 +44,30 @@ def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
         dodge=True,
         size=4,
         alpha=0.3,
-        palette=colors,
+        color="#1f1f1f",
         jitter=0.2,
+        ax=ax,
     )
 
-    # Customize the plot
     plt.title("Confidence Metrics", pad=20, fontsize=16, fontweight="bold")
-
     plt.xlabel("Confidence Metric", fontsize=12, fontweight="bold")
     plt.ylabel("Score", fontsize=12, fontweight="bold")
-
-    # Set y-axis limits from 0 to 100
     plt.ylim(0, 1)
-
-    # Add grid
     plt.grid(True, linestyle="--", alpha=0.7)
 
-    # Customize spines
     for spine in ax.spines.values():
         spine.set_linewidth(2)
 
-    # Add statistics as text
     stats_text = (
-        f"Median Scores:\n"
-        f"pLDDT:\n"
-        f"{df['pLDDT'].median() if df['pLDDT'].median() is not None else 0.00:.2f}\n"
-        f"pTM:\n"
-        f"{df['pTM'].median() if df['pTM'].median() is not None else 0.00:.2f}\n"
-        f"ipTM:\n"
-        f"{df['ipTM'].median() if df['ipTM'].median() is not None else 0.00:.2f}\n\n"
-        f"Mean Scores:\n"
-        f"pLDDT:\n"
-        f"{df['pLDDT'].mean() if df['pLDDT'].mean() is not None else 0.00:.2f} ± {df['pLDDT'].std() if df['pLDDT'].std() is not None else 0.00:.2f}\n"
-        f"pTM:\n"
-        f"{df['pTM'].mean() if df['pTM'].mean() is not None else 0.00:.2f} ± {df['pTM'].std() if df['pTM'].std() is not None else 0.00:.2f}\n"
-        f"ipTM:\n"
-        f"{df['ipTM'].mean() if df['ipTM'].mean() is not None else 0.00:.2f} ± {df['ipTM'].std() if df['ipTM'].std() is not None else 0.00:.2f}\n\n"
+        "Median Scores:\n"
+        f"pLDDT:\n{_format_number(df['pLDDT'].median())}\n"
+        f"pTM:\n{_format_number(df['pTM'].median())}\n"
+        f"ipTM:\n{_format_number(df['ipTM'].median())}\n\n"
+        "Mean Scores:\n"
+        f"pLDDT:\n{_format_mean_std(df['pLDDT'].mean(), df['pLDDT'].std())}\n"
+        f"pTM:\n{_format_mean_std(df['pTM'].mean(), df['pTM'].std())}\n"
+        f"ipTM:\n{_format_mean_std(df['ipTM'].mean(), df['ipTM'].std())}\n"
     )
-
     plt.text(
         1.15,
         0.95,
@@ -93,87 +78,88 @@ def plot_confidence_boxplot(df: pl.DataFrame, save_path: str):
         verticalalignment="top",
     )
 
-    # Adjust layout
     plt.tight_layout()
-
-    # Save plot
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
-    plt.close()
+    plt.close(fig)
 
 
-def collect_statistics(name_set: set[list], complex_dir):
-    """
-    Collect statistics for a set of molecule names
-    :param name_set: a set containing lists of molecule names, e.g. (bait_list, prey_list)
-    :param complex_dir: path to the directory containing the complex folders
-    """
-    name_combinations = list(product(*name_set))
-    name_list = list(map(lambda x: "-".join(x), name_combinations))
-    df = _collect_statistics(name_list, complex_dir)
-    return df
-
-def special_join(combination):
-    """
-    Join a list of strings with a special separator
-    :param name_set: a set containing lists of molecule names, e.g. (bait_list, prey_list)
-    :return: a string with the joined names
-    """
-    return "-".join([x if x is not None else "" for x in combination])
-
-def collect_statistics_exact(name_set: set[list], complex_dir):
-    """
-    Collect statistics for a set of molecule names, for exact input
-    :param name_set: a set containing lists of molecule names, e.g. (bait_list, prey_list)
-    :param complex_dir: path to the directory containing the complex folders
-    """
-    name_combinations = list(zip(*name_set))
-    name_list = list(map(special_join, name_combinations))
-    df = _collect_statistics(name_list, complex_dir)
-    return df
+def _format_number(value: float | None) -> str:
+    return f"{0.0 if value is None else value:.2f}"
 
 
-def _collect_statistics(name_list, complex_dir):
+def _format_mean_std(mean: float | None, std: float | None) -> str:
+    safe_mean = 0.0 if mean is None else mean
+    safe_std = 0.0 if std is None else std
+    return f"{safe_mean:.2f} ± {safe_std:.2f}"
+
+
+def collect_statistics(name_set: list[list[str]] | tuple[list[str], ...], complex_dir: str | Path) -> pl.DataFrame:
+    name_list = ["-".join(combination) for combination in product(*name_set)]
+    return _collect_statistics(name_list, complex_dir)
+
+
+def special_join(combination: tuple[str | None, ...]) -> str:
+    return "-".join([value if value is not None else "" for value in combination])
+
+
+def collect_statistics_exact(
+    name_set: list[list[str]] | tuple[list[str], ...],
+    complex_dir: str | Path,
+) -> pl.DataFrame:
+    name_list = [special_join(combination) for combination in zip(*name_set)]
+    return _collect_statistics(name_list, complex_dir)
+
+
+def _collect_statistics(name_list: list[str], complex_dir: str | Path) -> pl.DataFrame:
+    complex_root = Path(complex_dir)
     results = []
     for name in tqdm(name_list):
-        result = {"name": name, "pTM": np.nan, "chainPAE": np.nan, "pLDDT": np.nan, "ipTM": np.nan}
-        # Find matching folder
-        matching_folder = os.path.join(complex_dir, name)
+        result = {
+            "name": name,
+            "pTM": np.nan,
+            "chainPAE": np.nan,
+            "pLDDT": np.nan,
+            "ipTM": np.nan,
+        }
+        folder = complex_root / name
+        if folder.exists():
+            summary_path = folder / f"{folder.name}_summary_confidences.json"
+            if summary_path.exists():
+                summary_data = _load_json(summary_path)
+                if summary_data is not None:
+                    result["pTM"] = summary_data.get("ptm", np.nan)
+                    result["ipTM"] = summary_data.get("iptm", np.nan)
+                    chain_pair_pae_min = summary_data.get("chain_pair_pae_min")
+                    if isinstance(chain_pair_pae_min, list) and len(chain_pair_pae_min) > 1:
+                        result["chainPAE"] = chain_pair_pae_min[0][1]
 
-        if matching_folder and os.path.exists(matching_folder):
-            folder = matching_folder
-            basename = os.path.basename(folder)
-            json_file = os.path.join(
-                folder, f"{basename}_summary_confidences.json"
-            )
-
-            if os.path.exists(json_file):
-                try:
-                    with open(json_file, "r") as f:
-                        data = json.load(f)
-                        result["pTM"] = data["ptm"]
-                        result["ipTM"] = data["iptm"]
-                        if len(data["chain_pair_pae_min"]) > 1:
-                            result["chainPAE"] = data["chain_pair_pae_min"][0][1]
-                except:
-                    pass
-
-            atom_met_file = os.path.join(
-                folder, f"{basename}_confidences.json"
-            )
-            if os.path.exists(atom_met_file):
-                try:
-                    with open(atom_met_file, "r") as f:
-                        data = json.load(f)
-                        atom_plddts = data["atom_plddts"]
-                        average_plddt = sum(atom_plddts) / (len(atom_plddts) * 100)
-                        result["pLDDT"] = average_plddt
-                except:
-                    pass
+            atom_metrics_path = folder / f"{folder.name}_confidences.json"
+            if atom_metrics_path.exists():
+                atom_metrics = _load_json(atom_metrics_path)
+                if atom_metrics is not None:
+                    atom_plddts = atom_metrics.get("atom_plddts")
+                    if atom_plddts:
+                        result["pLDDT"] = sum(atom_plddts) / (len(atom_plddts) * 100)
+                    else:
+                        print(f"Warning: atom_plddts missing or empty in {atom_metrics_path}")
 
         molecule_names = name.split("-")
         if len(molecule_names) > 1:
-            for i, key in enumerate(molecule_names):
-                result[f"name_molecule{i}"] = key
+            for index, key in enumerate(molecule_names):
+                result[f"name_molecule{index}"] = key
         results.append(result)
-    df = pl.DataFrame(results)
-    return df
+
+    return pl.DataFrame(results)
+
+
+def _load_json(path: Path) -> dict | list | None:
+    try:
+        with path.open("r") as handle:
+            return json.load(handle)
+    except FileNotFoundError:
+        print(f"Warning: expected file not found: {path}")
+    except json.JSONDecodeError as error:
+        print(f"Warning: could not parse JSON {path}: {error}")
+    except OSError as error:
+        print(f"Warning: could not read {path}: {error}")
+    return None

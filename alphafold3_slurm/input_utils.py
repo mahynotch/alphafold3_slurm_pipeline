@@ -1,103 +1,49 @@
+import shutil
 import string
-from pydantic import BaseModel, Field, Json
-from typing import Optional, Literal, List
-from Bio import SeqIO
+from pathlib import Path
+from typing import Literal, Optional
+
 import polars as pl
-import os, shutil
+from Bio import SeqIO
+from pydantic import BaseModel, Field, Json
+
+
+MoleculeType = Literal["protein", "rna", "dna", "ligand_ccd", "ligand_smiles"]
+VALID_MOLECULE_TYPES = {"protein", "rna", "dna", "ligand_ccd", "ligand_smiles"}
 
 
 class PTM_Model(BaseModel):
-    """
-    Dataclass for modifications
-    e.g.:
-    {
-        "ptmType": "HY3",
-        "ptmPosition": 1
-    }
-    """
-
     ptmType: str
     ptmPosition: int
 
 
 class XNA_Modification_Model(BaseModel):
-    """
-    Dataclass for modifications
-    e.g.:
-    {
-        "modificationType": "2MG",
-        "basePosition": 1
-    }
-    """
-
     modificationType: str
     basePosition: int
 
 
 class Protein_Model(BaseModel):
-    """
-    Dataclass for protein sequences
-    e.g.:
-    {
-        "id": "A",
-        "sequence": "PVLSCGEWQL",
-        "modifications": [
-        {"ptmType": "HY3", "ptmPosition": 1},
-        {"ptmType": "P1L", "ptmPosition": 5}
-        ], #Optional
-        unpairedMsa: "PVLSCGEWQL", #Optional
-        pairedMsa: "PVLSCGEWQL", #Optional
-        "templates": [...] #Optional
-    }
-    """
-
     id: str | list[str]
     sequence: str
     modifications: Optional[list[PTM_Model]] = None
-    unpairedMsa: str = None
-    pairedMsa: str = None
+    unpairedMsa: str | None = None
+    pairedMsa: str | None = None
     templates: Optional[list[Json]] = None
 
 
 class Ligand_Model(BaseModel):
-    """
-    Dataclass for ligand sequences
-    {
-        "id": "B",
-        "smiles": "C1=CC=C(C=C1)C(=O)O", # SMILES string or...
-        "ccdCodes": ["TYR"] # CCD code
-
-    }
-    """
-
     id: str | list[str]
     smiles: Optional[str] = None
     ccdCodes: Optional[list[str]] = None
 
 
 class XNA_Model(BaseModel):
-    """
-    dataclass for RNA or DNA sequences
-    {
-        "id": "A",
-        "sequence": "AGCU",
-        "modifications": [
-        {"modificationType": "2MG", "basePosition": 1},
-        {"modificationType": "5MC", "basePosition": 4}
-        ] #Optional
-    }
-    """
-
     id: str | list[str]
     sequence: str
     modifications: Optional[list[XNA_Modification_Model]] = None
 
 
 class Sequence_Model(BaseModel):
-    """
-    Master class of all types of sequences, please only use one of the following:
-    """
-
     protein: Optional[Protein_Model] = None
     ligand: Optional[Ligand_Model] = None
     rna: Optional[XNA_Model] = None
@@ -105,24 +51,6 @@ class Sequence_Model(BaseModel):
 
 
 class Input_Model(BaseModel):
-    """
-    Dataclass for input json file
-    e.g.: {
-        "name": "Job name goes here",
-        "modelSeeds": [1, 2],  # At least one seed required.
-        "sequences": [
-            {"protein": {...}},
-            {"rna": {...}},
-            {"dna": {...}},
-            {"ligand": {...}}
-        ],
-        "bondedAtomPairs": [...],  # Optional
-        "userCCD": "...",  # Optional
-        "dialect": "alphafold3",  # Required
-        "version": 1  # Required
-    }
-    """
-
     name: str
     modelSeeds: list[int] = Field(default=[1], description="At least one seed required")
     sequences: list[Sequence_Model] = Field(
@@ -132,320 +60,178 @@ class Input_Model(BaseModel):
         default=None, description="List of bonded atom pairs"
     )
     userCCD: Optional[str] = Field(default=None, description="User provided CCD code")
-    dialect: str = Field(
-        default="alphafold3", description="Dialect"
-    )  # Please do not change this
+    dialect: str = Field(default="alphafold3", description="Dialect")
     version: int = Field(default=1, description="Version")
 
 
+def _build_sequence_model(
+    chain_id: str | list[str],
+    molecule_type: MoleculeType,
+    sequence: str,
+) -> Sequence_Model:
+    if molecule_type not in VALID_MOLECULE_TYPES:
+        valid = ", ".join(sorted(VALID_MOLECULE_TYPES))
+        raise ValueError(f"Invalid molecule type {molecule_type!r}. Expected one of: {valid}")
+
+    if molecule_type == "protein":
+        return Sequence_Model(protein=Protein_Model(id=chain_id, sequence=sequence))
+    if molecule_type == "rna":
+        return Sequence_Model(rna=XNA_Model(id=chain_id, sequence=sequence))
+    if molecule_type == "dna":
+        return Sequence_Model(dna=XNA_Model(id=chain_id, sequence=sequence))
+    if molecule_type == "ligand_smiles":
+        return Sequence_Model(ligand=Ligand_Model(id=chain_id, smiles=sequence))
+    return Sequence_Model(ligand=Ligand_Model(id=chain_id, ccdCodes=[sequence]))
+
+
 def build_protein_dimer(name: str, sequence1: str, sequence2: str) -> str:
-    """
-    Function to build a dimer from two sequences
-
-    :param name: name of the output file
-    :param sequence1: sequence of the first protein
-    :param sequence2: sequence of the second protein
-    :return: json string of the input file
-    """
-    sequence_protein1 = Sequence_Model(
-        protein=Protein_Model(id="A", sequence=sequence1)
-    )
-    sequence_protein2 = Sequence_Model(
-        protein=Protein_Model(id="B", sequence=sequence2)
-    )
-    sequences = [sequence_protein1, sequence_protein2]
-    # Test the dataclass
-    input_str = Input_Model(name=name, sequences=sequences)
-    return input_str.model_dump_json(exclude_none=True)
-
-
-def build_homomultimer(name: str, sequence: str, n: int):
-    """
-    Function to build a homomultimer, support up to 26 copies
-
-    :param name: name of the output file
-    :param sequence: sequence of the protein
-    :param n: number of copies
-    :return: json string of the input file
-    """
-    if n < 1:
-        raise ValueError("Number of copies should be greater than 1")
-    elif n > 26:
-        raise ValueError("Number of copies should be less than 26")
-    input_id = [chr(65 + i) for i in range(n)]
     sequences = [
-        Sequence_Model(protein=Protein_Model(id=input_id, sequence=sequence))
-        for i in range(n)
+        _build_sequence_model("A", "protein", sequence1),
+        _build_sequence_model("B", "protein", sequence2),
     ]
-    # Test the dataclass
-    input_str = Input_Model(name=name, sequences=sequences)
-    return input_str.model_dump_json(exclude_none=True)
+    return Input_Model(name=name, sequences=sequences).model_dump_json(exclude_none=True)
+
+
+def build_homomultimer(name: str, sequence: str, n: int) -> str:
+    if n < 1:
+        raise ValueError("Number of copies should be greater than 0")
+    if n > 26:
+        raise ValueError("Number of copies should be less than or equal to 26")
+
+    chain_ids = [chr(65 + index) for index in range(n)]
+    sequences = [_build_sequence_model(chain_ids, "protein", sequence)]
+    return Input_Model(name=name, sequences=sequences).model_dump_json(exclude_none=True)
 
 
 def build_dimer(
     name: str,
-    A_type: Literal["protein", "rna", "dna", "ligand_ccd", "ligand_smiles"],
-    A_sequence,
-    B_type: Literal["protein", "rna", "dna", "ligand_ccd", "ligand_smiles"],
-    B_sequence,
+    A_type: MoleculeType,
+    A_sequence: str,
+    B_type: MoleculeType,
+    B_sequence: str,
 ) -> str:
-    """
-    Function to build a dimer complex
-
-    :param name: name of the output file
-    :param A_type: type of sequence A
-    :param A_sequence: sequence of the first molecule
-    :param B_type: type of sequence B
-    :param B_sequence: sequence of the second molecule
-    """
-    match A_type:
-        case "protein":
-            sequence_A = Sequence_Model(
-                protein=Protein_Model(id="A", sequence=A_sequence)
-            )
-        case "rna":
-            sequence_A = Sequence_Model(rna=XNA_Model(id="A", sequence=A_sequence))
-        case "dna":
-            sequence_A = Sequence_Model(dna=XNA_Model(id="A", sequence=A_sequence))
-        case "ligand_smiles":
-            sequence_A = Sequence_Model(ligand=Ligand_Model(id="A", smiles=A_sequence))
-        case "ligand_ccd":
-            sequence_A = Sequence_Model(
-                ligand=Ligand_Model(id="A", ccdCodes=[A_sequence])
-            )
-        case _:
-            raise ValueError(
-                f"Invalid type A, should be one of protein, rna, dna, ligand_ccd, ligand_smiles, but got {A_type}"
-            )
-    match B_type:
-        case "protein":
-            sequence_B = Sequence_Model(
-                protein=Protein_Model(id="B", sequence=B_sequence)
-            )
-        case "rna":
-            sequence_B = Sequence_Model(rna=XNA_Model(id="B", sequence=B_sequence))
-        case "dna":
-            sequence_B = Sequence_Model(dna=XNA_Model(id="B", sequence=B_sequence))
-        case "ligand_smiles":
-            sequence_B = Sequence_Model(ligand=Ligand_Model(id="B", smiles=B_sequence))
-        case "ligand_ccd":
-            sequence_B = Sequence_Model(
-                ligand=Ligand_Model(id="B", ccdCodes=[B_sequence])
-            )
-        case _:
-            raise ValueError(
-                f"Invalid type B, should be one of protein, rna, dna, ligand_ccd, ligand_smiles, but got {B_type}"
-            )
-    sequences = [sequence_A, sequence_B]
-    input_str = Input_Model(name=name, sequences=sequences)
-    return input_str.model_dump_json(exclude_none=True)
+    sequences = [
+        _build_sequence_model("A", A_type, A_sequence),
+        _build_sequence_model("B", B_type, B_sequence),
+    ]
+    return Input_Model(name=name, sequences=sequences).model_dump_json(exclude_none=True)
 
 
-def build_monomer(
-    name: str,
-    type: Literal["protein", "rna", "dna", "ligand_ccd", "ligand_smiles"],
-    sequence,
-):
-    """
-    Function to build a monomer
+def build_monomer(name: str, type: MoleculeType, sequence: str) -> str:
+    sequences = [_build_sequence_model("A", type, sequence)]
+    return Input_Model(name=name, sequences=sequences).model_dump_json(exclude_none=True)
 
-    :param name: name of the output file
-    :param type: type of the sequence
-    :param sequence: sequence of the molecule
-    """
-    match type:
-        case "protein":
-            sequence = Sequence_Model(protein=Protein_Model(id="A", sequence=sequence))
-        case "rna":
-            sequence = Sequence_Model(rna=XNA_Model(id="A", sequence=sequence))
-        case "dna":
-            sequence = Sequence_Model(dna=XNA_Model(id="A", sequence=sequence))
-        case "ligand_smiles":
-            sequence = Sequence_Model(ligand=Ligand_Model(id="A", smiles=sequence))
-        case "ligand_ccd":
-            sequence = Sequence_Model(ligand=Ligand_Model(id="A", ccdCodes=[sequence]))
-        case _:
-            raise ValueError("Invalid type")
-    sequences = [sequence]
-    input_str = Input_Model(name=name, sequences=sequences)
-    return input_str.model_dump_json(exclude_none=True)
 
 def build_multimer(
     name: str,
-    type: List[Literal["protein", "rna", "dna", "ligand_ccd", "ligand_smiles"]],
-    sequence: List[str],
+    type: list[MoleculeType],
+    sequence: list[str],
     is_feature: bool = False,
-    ):
-    """
-    Function to build a multimer
-
-    :param name: name of the output file
-    :param type: type of the sequences
-    :param sequence: sequences of the molecules
-    """
+) -> str:
     if len(type) != len(sequence):
         raise ValueError("The length of type and sequence should be the same")
-    elif len(type) > 26:
-        raise ValueError("Number of copies should be less than 26")
-    models = []
-    id = "A"
-    for i in range(len(type)):
-        match type[i]:
-            case "protein":
-                sequence_model = Sequence_Model(protein=Protein_Model(id=id, sequence=sequence[i]))
-            case "rna":
-                sequence_model = Sequence_Model(rna=XNA_Model(id=id, sequence=sequence[i]))
-            case "dna":
-                sequence_model = Sequence_Model(dna=XNA_Model(id=id, sequence=sequence[i]))
-            case "ligand_smiles":
-                sequence_model = Sequence_Model(ligand=Ligand_Model(id=id, smiles=sequence[i]))
-            case "ligand_ccd":
-                sequence_model = Sequence_Model(ligand=Ligand_Model(id=id, ccdCodes=[sequence[i]]))
-            case _:
-                raise ValueError("Invalid type")
-        models.append(sequence_model)
-        id = chr(ord(id) + 1)
-    input_str = Input_Model(name=name, sequences=models, version=2 if is_feature else 1)
-    return input_str.model_dump_json(exclude_none=True)
+    if len(type) > 26:
+        raise ValueError("Number of copies should be less than or equal to 26")
 
-
-
-def _read_fasta_as_df(fasta_path: str) -> pl.DataFrame:
-    """
-    Function to read fasta file
-
-    :param fasta_path: path to the fasta file
-    :return: list of sequences
-    """
-    fasta_list = SeqIO.parse(fasta_path, "fasta")
-    id_list = []
-    sequence_list = []
-    for seq in fasta_list:
-        id_list.append(seq.id.split("|")[-1])
-        sequence_list.append(str(seq.seq))
-    data = pl.DataFrame({"id": id_list, "sequence": sequence_list})
-    return data
-
-def sanitize_string(s):
-    """
-    String sanitazation function, from alphafold3 codebase.
-    """
-    s = str(s)
-    lower_spaceless = s.lower().replace(' ', '_').replace('-', '_')
-    allowed_chars = set(string.ascii_lowercase + string.digits + '_-.')
-    return ''.join(c for c in lower_spaceless if c in allowed_chars)
-
-def sanitize_id_column(df: pl.DataFrame) -> pl.DataFrame:
-    """
-    Sanitizes the 'id' column using the same process as the sanitised_name method:
-    1. Convert to lowercase
-    2. Replace spaces with underscores
-    3. Keep only lowercase letters, digits, underscores, hyphens, and periods
-    
-    Args:
-        df: Input DataFrame with an 'id' column
-        
-    Returns:
-        DataFrame with sanitized 'id' column
-    """
-    return df.with_columns(
-        pl.col("id").map_elements(sanitize_string, return_dtype=pl.Object)
+    models = [
+        _build_sequence_model(chr(65 + index), molecule_type, molecule_sequence)
+        for index, (molecule_type, molecule_sequence) in enumerate(zip(type, sequence))
+    ]
+    version = 2 if is_feature else 1
+    return Input_Model(name=name, sequences=models, version=version).model_dump_json(
+        exclude_none=True
     )
 
 
-def read_file_as_df(file_paths: str | List[str], type_input: str) -> pl.DataFrame:
-    """
-    Function to read a file
+def _read_fasta_as_df(fasta_path: str) -> pl.DataFrame:
+    fasta_list = SeqIO.parse(fasta_path, "fasta")
+    ids: list[str] = []
+    sequences: list[str] = []
+    for seq in fasta_list:
+        ids.append(seq.id.split("|")[-1])
+        sequences.append(str(seq.seq))
+    return pl.DataFrame({"id": ids, "sequence": sequences})
 
-    :param file_path: path to the file
-    :return: list of sequences
-    """
+
+def sanitize_string(value: object) -> str:
+    lower_spaceless = str(value).lower().replace(" ", "_").replace("-", "_")
+    allowed_chars = set(string.ascii_lowercase + string.digits + "_-.")
+    return "".join(char for char in lower_spaceless if char in allowed_chars)
+
+
+def sanitize_id_column(df: pl.DataFrame) -> pl.DataFrame:
+    return df.with_columns(
+        pl.col("id").map_elements(sanitize_string, return_dtype=pl.String)
+    )
+
+
+def read_file_as_df(file_paths: str | list[str], type_input: MoleculeType) -> pl.DataFrame:
     print(f"Reading file {file_paths}...")
-    if type(file_paths) == str:
+    if isinstance(file_paths, str):
         file_paths = [file_paths]
-    df_list = []
+
+    df_list: list[pl.DataFrame] = []
     for file_path in file_paths:
-        if file_path.endswith(".fasta") or file_path.endswith(".fa"):
+        suffix = Path(file_path).suffix.lower()
+        if suffix in {".fasta", ".fa"}:
             data = _read_fasta_as_df(file_path)
-        elif file_path.endswith(".csv"):
+        elif suffix == ".csv":
             data = pl.read_csv(file_path)
-        elif file_path.endswith(".tsv"):
-            data = pl.read_csv(file_path, sep="\t")
+        elif suffix == ".tsv":
+            data = pl.read_csv(file_path, separator="\t")
         else:
-            raise ValueError("Invalid file format, please use files end in fasta, fa, csv or tsv")
+            raise ValueError("Invalid file format, please use fasta, fa, csv, or tsv")
         df_list.append(data)
-    concat_data: pl.DataFrame = pl.concat(df_list)
+
+    concat_data = pl.concat(df_list)
     concat_data = sanitize_id_column(concat_data)
     concat_data = concat_data.with_columns(pl.lit(type_input).alias("type"))
     print(f"Final size of the table: {concat_data.shape}")
     return concat_data
 
-def filter_dataframes(df_list: List[pl.DataFrame]) -> List[pl.DataFrame]:
-    """
-    Process a list of Polars dataframes:
-    1. Horizontally concatenate them
-    2. Drop null values
-    3. Keep only unique rows
-    4. Split them back into a list of dataframes
-    
-    Args:
-        df_list: List of Polars dataframes, each with 'id', 'sequence', and 'type' columns
-        
-    Returns:
-        List of Polars dataframes after processing
-    """
-    import polars as pl
-    
-    # Check if the list is empty
+
+def filter_dataframes(df_list: list[pl.DataFrame]) -> list[pl.DataFrame]:
     if not df_list:
         return []
-    
-    # Rename columns to make them unique
+
     renamed_dfs = []
-    for i, df in enumerate(df_list):
-        renamed_df = df.rename({
-            "id": f"id_{i}",
-            "sequence": f"sequence_{i}",
-            "type": f"type_{i}"
-        })
-        renamed_dfs.append(renamed_df)
-    
-    # Horizontally concatenate the dataframes
-    concatenated_df = pl.concat(renamed_dfs, how="horizontal")
-    
-    # Drop rows with null values
-    concatenated_df = concatenated_df.drop_nulls()
-    
-    # Keep only unique rows
-    concatenated_df = concatenated_df.unique()
-    
-    # Split the dataframe back into a list
+    for index, df in enumerate(df_list):
+        renamed_dfs.append(
+            df.rename(
+                {
+                    "id": f"id_{index}",
+                    "sequence": f"sequence_{index}",
+                    "type": f"type_{index}",
+                }
+            )
+        )
+
+    concatenated_df = pl.concat(renamed_dfs, how="horizontal").drop_nulls().unique()
+
     result_dfs = []
-    for i in range(len(df_list)):
-        cols_to_select = [f"id_{i}", f"sequence_{i}", f"type_{i}"]
-        result_df = concatenated_df.select(cols_to_select).rename({
-            f"id_{i}": "id",
-            f"sequence_{i}": "sequence",
-            f"type_{i}": "type"
-        })
-        result_dfs.append(result_df)
-    
+    for index in range(len(df_list)):
+        cols_to_select = [f"id_{index}", f"sequence_{index}", f"type_{index}"]
+        result_dfs.append(
+            concatenated_df.select(cols_to_select).rename(
+                {
+                    f"id_{index}": "id",
+                    f"sequence_{index}": "sequence",
+                    f"type_{index}": "type",
+                }
+            )
+        )
     return result_dfs
 
 
-def check_exist(destination):
-    """
-    Function to check if the destination folder exists, and ask the user if they want to delete it.
-    :param destination: path to the destination folder
-    """
-    if os.path.exists(destination):
-        user_input = input(
-            f"The folder {destination} already exists. Do you want to delete it? (Y/n): "
-        )
-        if user_input.lower() == "n":
-            print(f"Folder {destination} not deleted. Exiting...")
-            exit()
-        else:
-            shutil.rmtree(destination)
-            print(f"Deleted folder {destination}")
-            
+def prepare_output_dir(destination: str | Path, overwrite: bool = False) -> Path:
+    destination_path = Path(destination)
+    if destination_path.exists():
+        if not overwrite:
+            raise FileExistsError(
+                f"{destination_path} already exists. Re-run with --overwrite to replace it."
+            )
+        shutil.rmtree(destination_path)
+        print(f"Deleted existing directory {destination_path}")
+
+    destination_path.mkdir(parents=True, exist_ok=True)
+    return destination_path
