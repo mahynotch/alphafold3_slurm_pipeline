@@ -144,12 +144,12 @@ def build_multimer(
 
 
 def _read_fasta_as_df(fasta_path: str) -> pl.DataFrame:
-    fasta_list = SeqIO.parse(fasta_path, "fasta")
     ids: list[str] = []
     sequences: list[str] = []
-    for seq in fasta_list:
-        ids.append(seq.id.split("|")[-1])
-        sequences.append(str(seq.seq))
+    with open(fasta_path, "r") as handle:
+        for seq in SeqIO.parse(handle, "fasta"):
+            ids.append(seq.id.split("|")[-1])
+            sequences.append(str(seq.seq))
     return pl.DataFrame({"id": ids, "sequence": sequences})
 
 
@@ -185,9 +185,31 @@ def read_file_as_df(file_paths: str | list[str], type_input: MoleculeType) -> pl
 
     concat_data = pl.concat(df_list)
     concat_data = sanitize_id_column(concat_data)
+    _check_id_collisions(concat_data)
     concat_data = concat_data.with_columns(pl.lit(type_input).alias("type"))
     print(f"Final size of the table: {concat_data.shape}")
     return concat_data
+
+
+def _check_id_collisions(df: pl.DataFrame) -> None:
+    """Fail if different sequences share an ID after sanitization.
+
+    Output directories are named by ID, so such rows would silently overwrite
+    or skip each other.
+    """
+    conflicts = (
+        df.group_by("id")
+        .agg(pl.col("sequence").n_unique().alias("n_sequences"))
+        .filter(pl.col("n_sequences") > 1)
+        .sort("id")
+    )
+    if not conflicts.is_empty():
+        shown = ", ".join(conflicts["id"].head(10).to_list())
+        raise ValueError(
+            f"{len(conflicts)} ID(s) map to more than one sequence after sanitization "
+            f"(lowercase, spaces/dashes -> '_', other symbols removed): {shown}. "
+            "Rename them so each ID is unique."
+        )
 
 
 def filter_dataframes(df_list: list[pl.DataFrame]) -> list[pl.DataFrame]:

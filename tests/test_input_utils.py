@@ -68,5 +68,21 @@ class InputUtilsTest(unittest.TestCase):
         self.assertEqual(sanitize_string("A B-C*D"), "a_b_cd")
 
 
+
+class IdCollisionTest(unittest.TestCase):
+    def test_conflicting_sequences_for_same_sanitized_id_raise(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fasta = Path(temp_dir) / "x.fasta"
+            fasta.write_text(">P1-A\nAAAA\n>p1_a\nCCCC\n")
+            with self.assertRaisesRegex(ValueError, "p1_a"):
+                read_file_as_df(str(fasta), "protein")
+
+    def test_identical_duplicates_are_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fasta = Path(temp_dir) / "x.fasta"
+            fasta.write_text(">P1\nAAAA\n>p1\nAAAA\n")
+            self.assertEqual(len(read_file_as_df(str(fasta), "protein")), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
