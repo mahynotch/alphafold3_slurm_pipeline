@@ -1,0 +1,20 @@
+{
+  "name": "barnase_barstar_dimer",
+  "modelSeeds": [1],
+  "sequences": [
+    {
+      "protein": {
+        "id": "A",
+        "sequence": "AQVINTFDGVADYLQTYHKLPDNYITKSEAQALGWVASKGNLADVAPGKSIGGDIFSNREGKLPGKSGRTWREADINYTSGFRNSDRILYSSDWLIYKTTDHYQTFTKIR"
+      }
+    },
+    {
+      "protein": {
+        "id": "B",
+        "sequence": "KKAVINGEQIRSISDLHQTLKKELALPEYYGENLDALWDALTGWVEYPLVLEWRQFEQSKQLTENGAESVLQVFREAKAEGCDITIILS"
+      }
+    }
+  ],
+  "dialect": "alphafold3",
+  "version": 1
+}
