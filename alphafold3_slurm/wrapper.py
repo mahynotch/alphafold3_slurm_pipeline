@@ -1,6 +1,5 @@
 import json
 import shutil
-import subprocess
 from itertools import product
 from math import ceil
 from pathlib import Path
@@ -19,7 +18,7 @@ from .input_utils import (
     prepare_output_dir,
     read_file_as_df,
 )
-from .runtime import build_af3_command, runtime_exports
+from .runtime import build_af3_command, runtime_exports, sbatch_submit
 from .stat_utils import (
     collect_statistics,
     collect_statistics_exact,
@@ -237,18 +236,9 @@ done
         self._sbatch_submit(script_path)
 
     def _sbatch_submit(self, script_path: Path) -> None:
-        completed = subprocess.run(
-            ["sbatch", str(script_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        stdout = completed.stdout.strip()
-        stderr = completed.stderr.strip()
+        stdout = sbatch_submit(script_path)
         if stdout:
             print(stdout)
-        if stderr:
-            print(stderr)
         print("Job submitted successfully")
 
     def detailed_check(self) -> None:

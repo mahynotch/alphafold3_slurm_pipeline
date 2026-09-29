@@ -2,12 +2,11 @@
 
 import argparse
 import shlex
-import subprocess
 import tempfile
 from pathlib import Path
 
 from ..config import get_config
-from ..runtime import GPU_TYPES, build_af3_command, runtime_exports
+from ..runtime import GPU_TYPES, build_af3_command, runtime_exports, sbatch_submit
 
 SCRIPT_TEMPLATE = """#!/bin/bash
 #SBATCH -N 1
@@ -88,16 +87,9 @@ def _submit_script(script_contents: str) -> None:
         script_path = Path(handle.name)
 
     try:
-        completed = subprocess.run(
-            ["sbatch", str(script_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        if completed.stdout.strip():
-            print(completed.stdout.strip())
-        if completed.stderr.strip():
-            print(completed.stderr.strip())
+        stdout = sbatch_submit(script_path)
+        if stdout:
+            print(stdout)
     finally:
         script_path.unlink(missing_ok=True)
 

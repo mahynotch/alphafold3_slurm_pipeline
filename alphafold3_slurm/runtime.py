@@ -7,6 +7,7 @@ use XLA attention, otherwise run_alphafold.py refuses to start.
 """
 
 import shlex
+import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -115,3 +116,28 @@ def build_af3_command(
         # the pipeline never sees the finished model.
         parts.append("--force_output_dir")
     return " ".join(parts)
+
+
+def sbatch_submit(script_path: Path) -> str:
+    """Submit ``script_path`` with sbatch and return its stdout.
+
+    Exits with Slurm's own error message (e.g. an invalid account, QOS or
+    constraint) instead of a bare CalledProcessError traceback.
+    """
+    try:
+        completed = subprocess.run(
+            ["sbatch", str(script_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as error:
+        raise SystemExit("sbatch not found: run this on a Slurm login node.") from error
+    except subprocess.CalledProcessError as error:
+        reason = (error.stderr or error.stdout or "").strip() or "no error message"
+        raise SystemExit(
+            f"sbatch rejected {script_path} (exit {error.returncode}):\n{reason}"
+        ) from error
+    if completed.stderr.strip():
+        print(completed.stderr.strip())
+    return completed.stdout.strip()

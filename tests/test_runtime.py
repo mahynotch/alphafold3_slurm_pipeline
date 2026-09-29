@@ -1,8 +1,10 @@
+import subprocess
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from alphafold3_slurm.config import get_config
-from alphafold3_slurm.runtime import build_af3_command, runtime_exports
+from alphafold3_slurm.runtime import build_af3_command, runtime_exports, sbatch_submit
 
 from support import use_temp_config
 
@@ -69,6 +71,18 @@ class BuildCommandTest(unittest.TestCase):
         use_temp_config(self, force_flag=False)
         command = build_af3_command(get_config(), "in.json", Path("/out"))
         self.assertNotIn("--force_output_dir", command)
+
+
+
+class SbatchSubmitTest(unittest.TestCase):
+    def test_rejection_shows_slurm_reason(self) -> None:
+        error = subprocess.CalledProcessError(
+            1, ["sbatch", "x.slurm"], stderr="sbatch: error: Invalid qos specification\n"
+        )
+        with patch("alphafold3_slurm.runtime.subprocess.run", side_effect=error):
+            with self.assertRaises(SystemExit) as raised:
+                sbatch_submit(Path("x.slurm"))
+        self.assertIn("Invalid qos specification", str(raised.exception))
 
 
 if __name__ == "__main__":

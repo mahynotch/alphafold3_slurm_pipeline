@@ -124,7 +124,7 @@ class WrapperTest(unittest.TestCase):
             script_path = temp_path / "run.slurm"
             script_path.write_text("#!/bin/bash\n")
 
-            with patch("alphafold3_slurm.wrapper.subprocess.run") as run_mock:
+            with patch("alphafold3_slurm.runtime.subprocess.run") as run_mock:
                 run_mock.return_value.stdout = "Submitted batch job 123"
                 run_mock.return_value.stderr = ""
                 wrapper._sbatch_submit(script_path)
@@ -189,7 +189,7 @@ class WrapperTest(unittest.TestCase):
             stale_job_dir.mkdir(parents=True)
             (stale_job_dir / "stale.json").write_text("{}")
 
-            with patch("alphafold3_slurm.wrapper.subprocess.run") as run_mock:
+            with patch("alphafold3_slurm.runtime.subprocess.run") as run_mock:
                 wrapper.run()
 
             run_mock.assert_not_called()
