@@ -1,3 +1,39 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "alphafold3_slurm_pipeline"
+version = "0.2.0"
+description = "Large-scale AlphaFold3 screening on Slurm clusters"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Huaiyuan Ma", email = "huaiyuan.ma@kaust.edu.sa" }]
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "biopython",
+    "matplotlib",
+    "numpy",
+    "polars>=1.0",
+    "pydantic>=2",
+    "pyyaml",
+    "seaborn",
+    "tqdm",
+]
+
+[project.urls]
+Homepage = "https://github.com/mahynotch/alphafold3_slurm_pipeline"
+
+[project.scripts]
+af3pulldown = "alphafold3_slurm.cli.pulldown:main"
+af3oligomer = "alphafold3_slurm.cli.oligomer:main"
+make_monomers = "alphafold3_slurm.cli.monomers:main"
+submit_input = "alphafold3_slurm.cli.submit_input:main"
+
+[tool.setuptools.packages.find]
+include = ["alphafold3_slurm*"]

@@ -1,10 +1,17 @@
-alphafold3
-env
-dcgm
-alphafold3_slurm_pipeline.egg-info
-__pycache__
+# Local installation (created by install.sh)
+af3_env/
+AF3_install_*.out
+alphafold3_slurm/config.yaml
+alphafold3_slurm/config.yaml.bak.*
+
+# Legacy conda installation
+alphafold3/
+env/
 AF_install.out
-build
-alphafold3_slurm_pipeline/config.yaml
-alphafold3_slurm/__pycache__
 bin/run_alphafold
+
+# Python build artefacts
+__pycache__/
+*.egg-info/
+build/
+dcgm/

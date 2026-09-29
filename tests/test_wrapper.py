@@ -6,8 +6,13 @@ from unittest.mock import patch
 
 from alphafold3_slurm.wrapper import Alphafold3Multimer, Alphafold3WrapperMonomer
 
+from support import use_temp_config
+
 
 class WrapperTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config_root = use_temp_config(self)
+
     def _write_fasta(self, path: Path, records: list[tuple[str, str]]) -> None:
         path.write_text("".join(f">{name}\n{sequence}\n" for name, sequence in records))
 
@@ -149,6 +154,20 @@ class WrapperTest(unittest.TestCase):
             script_contents = script_path.read_text()
 
             self.assertIn("#SBATCH --array=0-1", script_contents)
+            self.assertIn(str(wrapper.destination / "ibex_out" / "%x-%j.out"), script_contents)
+            root = self.config_root
+            self.assertIn(
+                f"{root / 'venv' / 'bin' / 'python'} {root / 'alphafold3' / 'run_alphafold.py'}",
+                script_contents,
+            )
+            self.assertIn(f"--jackhmmer_binary_path={root / 'hmmer' / 'bin' / 'jackhmmer'}", script_contents)
+            self.assertIn(f"--nhmmer_binary_path={root / 'hmmer' / 'bin' / 'nhmmer'}", script_contents)
+            self.assertIn('export XLA_FLAGS="--xla_gpu_enable_triton_gemm=false"', script_contents)
+            self.assertIn("--force_output_dir", script_contents)
+            self.assertIn(f"--jax_compilation_cache_dir={wrapper.destination / '.jax_cache'}", script_contents)
+            self.assertNotIn("conda activate", script_contents)
+            self.assertNotIn("CUDA_VISIBLE_DEVICES", script_contents)
+            self.assertNotIn("--flash_attention_implementation", script_contents)
             self.assertIn("run-both.slurm", str(script_path))
             self.assertTrue((wrapper.destination / "ibex_out").exists())
 

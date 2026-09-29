@@ -1,0 +1,8 @@
+# Written automatically by ./install.sh to alphafold3_slurm/config.yaml.
+# Copy and edit this only if you install by hand; set $AF3_SLURM_CONFIG to use
+# a config file stored somewhere else.
+env: /path/to/af3_env/venv                  # uv virtualenv with AlphaFold3 + this pipeline
+af3_dir: /path/to/af3_env/alphafold3      # AlphaFold3 source checkout (run_alphafold.py)
+hmmer_bin: /path/to/af3_env/hmmer/bin     # jackhmmer, nhmmer, hmmalign, hmmsearch, hmmbuild
+db: /ibex/reference/KSL/alphafold/3.0.0   # genetic databases
+parameter: /path/to/parameter             # directory containing af3.bin(.zst)

@@ -10,7 +10,7 @@ import numpy as np
 import polars as pl
 from tqdm import tqdm
 
-from .config import Config
+from .config import get_config
 from .input_utils import (
     build_dimer,
     build_monomer,
@@ -19,13 +19,12 @@ from .input_utils import (
     prepare_output_dir,
     read_file_as_df,
 )
+from .runtime import build_af3_command, runtime_exports
 from .stat_utils import (
     collect_statistics,
     collect_statistics_exact,
     plot_confidence_boxplot,
 )
-
-config = Config()
 
 MOLECULE_TYPES = {"protein", "ligand_ccd", "ligand_smiles", "dna", "rna"}
 
@@ -95,7 +94,9 @@ class BaseAlphafold3:
 
     def _has_structure_output(self, name: str) -> bool:
         output_dir = self._get_output_dir(name)
-        return output_dir.exists() and any(path.suffix == ".cif" for path in output_dir.iterdir())
+        return output_dir.exists() and any(
+            path.name.endswith((".cif", ".cif.zst")) for path in output_dir.iterdir()
+        )
 
     def _prepare_inputs_dir(self) -> Path:
         return prepare_output_dir(self._get_inputs_dir(), overwrite=self.overwrite)
@@ -159,20 +160,16 @@ class BaseAlphafold3:
                 print(f"  {failed_name}")
 
     def _get_python_command(self) -> str:
-        base_cmd = (
-            f"run_alphafold --json_path=$json --model_dir={config.parameter} "
-            f"--db_dir={config.db} --flash_attention_implementation=xla"
-        )
-        if self.job_type == "make_feature":
-            return f"{base_cmd} --output_dir={self.destination} --norun_inference"
-        if self.job_type == "make_complex":
-            return (
-                f"{base_cmd} --num_diffusion_samples {self.num_sample} "
-                f"--output_dir={self.destination} --norun_data_pipeline"
-            )
-        return (
-            f"{base_cmd} --num_diffusion_samples {self.num_sample} "
-            f"--output_dir={self.destination}"
+        return build_af3_command(
+            get_config(),
+            '"$json"',
+            self.destination,
+            run_data_pipeline=self.job_type != "make_complex",
+            run_inference=self.job_type != "make_feature",
+            gpu_type=self.gpu_type,
+            num_diffusion_samples=self.num_sample,
+            num_cpu=self.num_cpu,
+            compilation_cache_dir=self.destination / ".jax_cache",
         )
 
     def print_script(self) -> Path:
@@ -194,7 +191,7 @@ class BaseAlphafold3:
         script_dir = self.destination / "script"
         script_dir.mkdir(parents=True, exist_ok=True)
 
-        inputs_glob = f"{inputs_dir}/job-$SLURM_ARRAY_TASK_ID/*.json"
+        inputs_glob = f'"{inputs_dir}/job-$SLURM_ARRAY_TASK_ID/"*.json'
         script = f"""#!/bin/bash
 #SBATCH -N 1
 #SBATCH --array=0-{len(job_dirs) - 1}
@@ -205,16 +202,9 @@ class BaseAlphafold3:
 #SBATCH --cpus-per-task={self.num_cpu}
 {email_settings}
 {gpu_param}
-source ~/.bashrc
-conda activate {config.env}
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-export TF_FORCE_UNIFIED_MEMORY=1
-export LA_FLAGS=\"--xla_gpu_enable_triton_gemm=false\"
-export XLA_PYTHON_CLIENT_PREALLOCATE=true
-export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95
-export XLA_FLAGS=\"--xla_disable_hlo_passes=custom-kernel-fusion-rewriter\"
+{runtime_exports(self.gpu_type)}
 
-if [ -d {inputs_dir}/job-$SLURM_ARRAY_TASK_ID ]; then
+if [ -d "{inputs_dir}/job-$SLURM_ARRAY_TASK_ID" ]; then
     echo 'Directory exists, proceeding with the job...'
 else
     echo 'Directory does not exist, exiting...'
@@ -222,7 +212,7 @@ else
 fi
 
 for json in {inputs_glob}; do
-    echo $json
+    echo "$json"
     echo {self.job_type}
     echo SOJ_indicator
     time {self._get_python_command()}

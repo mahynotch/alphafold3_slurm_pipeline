@@ -4,26 +4,59 @@ This repository contains a pipeline for running large scale screening AlphaFold3
 - Make complexes: Generate dimer complexes for two list of protein sequences, based on features.
 - Make monomer: Generate monomer models for a list of protein sequences listed in a fasta file.
 
-To install it, please follow the instructions below (**This installation guide is for Ibex system of KAUST only. For non-Ibex users, please refer to the [Non-ibex User](#non-ibex) part.**).
+The pipeline targets **AlphaFold3 v3.0.4** (latest release, July 2026). The installer follows AlphaFold3's own recipe: Python 3.12, HMMER 3.4 with AlphaFold3's `--seq_limit` patch, and `uv sync` against the release's lockfile. Everything goes into one self-contained directory, `af3_env/`. Conda is not used.
+
 ## Installation
-1. Clone this repository.
-2. `cd alphafold3_slurm_pipeline`
-3. Run `./af3_env_setup.sh` to install the required dependencies. **This process would submit a sbatch job, and could take fair amount of time.**
-4. If the installation is failed, you can refer to "AF_install.out" for any error messages. Please contact the author if you have any questions.
+### Requirements
+- A Linux Slurm cluster with NVIDIA GPUs (A100, or V100 with the XLA workarounds the pipeline applies automatically).
+- `git`, `curl`, `make`, and a C++ compiler (`g++`). On Ibex, `gcc/12.2.0` is loaded automatically.
+- Internet access on the node that runs the installer. `uv` is downloaded automatically if it is not on `PATH`.
+- About 15 GB of disk space for `af3_env/`.
+- The AlphaFold3 model weights (`af3.bin.zst`). See [Weights](#weights).
 
-## Non-ibex User
+### Steps
+1. Clone this repository and `cd alphafold3_slurm_pipeline`.
+2. Run the installer from the repository root, either as a CPU batch job (recommended; no GPU needed) or directly in your shell:
+   ```bash
+   sbatch install.sh --params /path/to/weights_dir     # log: AF3_install_<jobid>.out
+   # or
+   ./install.sh --params /path/to/weights_dir
+   ```
+   Options:
+   | Option | Default | Meaning |
+   |---|---|---|
+   | `--params DIR` | `./parameter` | Directory containing `af3.bin.zst` |
+   | `--db DIR` | `/ibex/reference/KSL/alphafold/3.0.0` | AlphaFold3 genetic databases |
+   | `--prefix DIR` | `./af3_env` | Install location |
+   | `--af3-version TAG` | `v3.0.4` | AlphaFold3 git tag or commit |
+   | `--modules "LIST"` | `gcc/12.2.0` | Environment modules to load before compiling (`""` for none) |
+3. Activate the environment when you want to use the commands: `source af3_env/venv/bin/activate`.
+
+Re-running the installer is safe: finished steps are skipped, and the config is rewritten after the old one is backed up. To upgrade AlphaFold3 later, re-run with a new `--af3-version`.
+
+The installer writes `alphafold3_slurm/config.yaml`, which is not tracked by git. To keep a config elsewhere, set `AF3_SLURM_CONFIG=/path/to/config.yaml`. See `config.example.yaml` for the keys.
+
+### Layout
+```
+af3_env/
+├── venv/          # Python 3.12 + AlphaFold3 + this pipeline (editable)
+├── alphafold3/    # AlphaFold3 source at the installed tag (run_alphafold.py)
+└── hmmer/bin/     # jackhmmer, nhmmer, hmmalign, hmmsearch, hmmbuild
+```
+
+### Migrating from the old conda installation
+Configs written by the old installer (`db`/`env`/`parameter` only) still work. Running `install.sh` switches the pipeline to the new environment. Once the new install works, you can delete the old `env/` and `alphafold3/` directories.
+
+## Non-Ibex users
 <a name="non-ibex"></a>
-For non-Ibex users, you need to make several modifications based on the slurm system you use. The following steps are required:
-1. Modify alphafold3_slurm/config.py to set the correct paths for your system, this step is done in the setup script.
-2. Modify `module load cuda/12.2 gcc/12.2.0` part of the "af3_install.slurm" file to load the correct modules for your system. Usually modern systems should have CUDA and GCC installed.
-3. Modify the `--constraint` and `--gres` arguments according to the design of your system. "af3_install.slurm" and "alphfold3_slurm/wrapper.py" files are the file that you need to modify.
-4. You should be able to run the installation script as above after these modifications.
+- Pass `--db` and `--params` to the installer, and `--modules ""` (or your site's compiler module).
+- Generated jobs request `--gres=gpu:1` and `--constraint=<gpu_type>`. If your cluster names GPU features differently, adjust `print_script` in `alphafold3_slurm/wrapper.py` and `SCRIPT_TEMPLATE` in `alphafold3_slurm/cli/submit_input.py`.
 
-## Weight
-It is worth noting that the parameter of AF3 should not be distributed or shared without permission. Therefore, if you are looking for the parameter required by AF3. Please refer to [Obtaining Model Parameters](https://github.com/google-deepmind/alphafold3/tree/main?tab=readme-ov-file) of AF3 github page.
+## Weights
+The AlphaFold3 model parameters must not be redistributed. To obtain them, follow [Obtaining Model Parameters](https://github.com/google-deepmind/alphafold3/tree/main?tab=readme-ov-file) on the AlphaFold3 GitHub page. Parameters are compatible with every 3.0.x release.
 
 ## Usage
-After installation, you can use the pipeline to generate features, complexes, and monomers. Activate the environment before running any command (by default, `cd` to this repository and run `conda activate ./env`). To check submitted jobs, run `squeue -u $USER`.
+After installation, you can use the pipeline to generate features, complexes, and monomers. Activate the environment before running any command (`source af3_env/venv/bin/activate`). To check submitted jobs, run `squeue -u $USER`.
 
 > If a generated `inputs_*` directory already exists, commands now fail fast. Re-run with `--overwrite` to replace the generated inputs for that stage.
 
@@ -31,7 +64,7 @@ After installation, you can use the pipeline to generate features, complexes, an
 The most common usage of this pipeline is to submit one JSON input or a directory of JSON inputs. You can refer to [this document](https://github.com/google-deepmind/alphafold3/blob/main/docs/input.md) for details on the AlphaFold3 input format.
 
 To submit every `*.json` file in a directory:
-`submit_input --input <input_folder> --output <output_folder> --time <minutes> --mem <gb>`
+`submit_input --input <input_folder> --output <output_folder> [--time <minutes>] [--mem <gb>] [--cpus <n>] [--gpu_type a100|v100]`
 To submit a single JSON file, pass the file path to `--input`. Outputs are written to the directory specified by `--output`.
 
 > `submit_input` submits jobs immediately; the wrapper commands below generate staged `inputs_*` directories and then submit a Slurm array script.
@@ -71,10 +104,10 @@ Optional Arguments
 - `--mem`: GB memory per job (default: `64`)
 - `--mail`: Email for job notifications
 - `--gpu_type`: GPU architecture to use (`a100` or `v100`, default: `a100`)
-- `--max_jobs`: Maximum concurrent jobs (default: `1990`)
+- `--max_jobs`: Maximum number of Slurm array tasks; inputs are batched to fit (default: `1990`)
 - `--overwrite`: Replace an existing generated `inputs_make_feature`, `inputs_make_complex`, or `inputs_both` directory before writing new inputs
 - `--check_only`: Check completion status only
-- `--check_only_exact`: Check and report detailed errors
+- `--check_only_exact`: Report detailed errors from the Slurm logs, and delete the output directories of failed predictions so they are re-run next time
 - `--check_stat`: Print pLDDT, ipTM, and pTM statistics
 
 > `--check_only` and `--check_only_exact` never submit jobs.
@@ -111,10 +144,10 @@ Optional Arguments
 - `--mem`: GB memory per job (default: `64`)
 - `--mail`: Email for job notifications
 - `--gpu_type`: GPU architecture to use (`a100` or `v100`, default: `a100`)
-- `--max_jobs`: Maximum concurrent jobs (default: `1990`)
+- `--max_jobs`: Maximum number of Slurm array tasks; inputs are batched to fit (default: `1990`)
 - `--overwrite`: Replace an existing generated `inputs_make_feature`, `inputs_make_complex`, or `inputs_both` directory before writing new inputs
 - `--check_only`: Check completion status only
-- `--check_only_exact`: Check and report detailed errors
+- `--check_only_exact`: Report detailed errors from the Slurm logs, and delete the output directories of failed predictions so they are re-run next time
 - `--check_stat`: Print pLDDT, ipTM, and pTM statistics
 
 ### Monomer
@@ -134,10 +167,10 @@ Optional Arguments
 - `--mem`: GB memory per job (default: `64`)
 - `--gpu_type`: GPU architecture to use (`a100` or `v100`, default: `a100`)
 - `--mail`: Email for job notifications
-- `--max_jobs`: Maximum concurrent jobs (default: `1990`)
+- `--max_jobs`: Maximum number of Slurm array tasks; inputs are batched to fit (default: `1990`)
 - `--overwrite`: Replace an existing generated `inputs_both` directory before writing new inputs
 - `--check_only`: Check completion status only
-- `--check_only_exact`: Check and report detailed errors
+- `--check_only_exact`: Report detailed errors from the Slurm logs, and delete the output directories of failed predictions so they are re-run next time
 - `--check_stat`: Print pLDDT, ipTM, and pTM statistics
 
 You can also display parameter descriptions by calling `<command> --help`. To see more examples, check [examples](examples/example.md).
